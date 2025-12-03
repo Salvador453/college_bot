@@ -8,7 +8,7 @@ import json
 TOKEN = "8279399872:AAErEd7JODe8bwj9_EYfaM7Un8XHe-c8kxI"
 
 # твой Telegram ID (узнаешь в @userinfobot / @getmyid_bot)
-ADMIN_IDS = {123456789}  # <-- замени на своё число
+ADMIN_IDS = {1509389908}  # <-- замени на своё число
 
 # Неделя, которая начинается в ПН 01.12.2025 – це ЗНАМЕННИК
 REFERENCE_MONDAY = date(2025, 12, 1)
