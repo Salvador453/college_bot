@@ -7,6 +7,13 @@ import json
 
 TOKEN = "8279399872:AAH7NjweBtoYs97WZ9Vme-6BRzE219LP0T4"
 
+# Отключаем webhook, если он активен
+try:
+    bot.remove_webhook()
+except:
+    pass
+
+
 # твой Telegram ID (узнаешь в @userinfobot / @getmyid_bot)
 ADMIN_IDS = {1509389908}  # <-- замени на своё число
 
