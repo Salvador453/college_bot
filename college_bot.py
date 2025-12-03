@@ -5,7 +5,7 @@ import json
 
 # ================== НАСТРОЙКИ ==================
 
-TOKEN = "8279399872:AAErEd7JODe8bwj9_EYfaM7Un8XHe-c8kxI"
+TOKEN = "8279399872:AAH7NjweBtoYs97WZ9Vme-6BRzE219LP0T4"
 
 # твой Telegram ID (узнаешь в @userinfobot / @getmyid_bot)
 ADMIN_IDS = {1509389908}  # <-- замени на своё число
