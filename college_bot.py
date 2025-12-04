@@ -10,7 +10,7 @@ from flask import Flask
 import threading
 import os
 
-app = Flask(name)
+app = Flask(__name__)
 
 @app.route("/")
 def home():
@@ -45,7 +45,7 @@ REFERENCE_MONDAY = date(2025, 12, 1)
 REFERENCE_WEEK_TYPE = "знаменник"
 
 SCHEDULE_FILE = "schedule.json"
-USERS_FILE = "users.json"   # тут будем хранить кто писал боту
+USERS_FILE = "users.json"   # тут будем хранить хто писав боту
 
 # Расклад дзвінків
 BELL_SCHEDULE = {
@@ -216,8 +216,7 @@ def default_schedule():
         "3": {"subject": "Захист України", "room": "242 / 201"},
     }
 
-
-return {
+    return {
         "monday": {"чисельник": monday_chys, "знаменник": monday_znam},
         "tuesday": {"чисельник": tuesday_chys, "знаменник": tuesday_znam},
         "wednesday": {"чисельник": wednesday_chys, "знаменник": wednesday_znam},
@@ -359,7 +358,7 @@ def build_day_markup(d):
     markup = InlineKeyboardMarkup(row_width=1)
     has_buttons = False
 
-for pair_str in sorted(day_schedule.keys(), key=lambda x: int(x)):
+    for pair_str in sorted(day_schedule.keys(), key=lambda x: int(x)):
         pair_num = int(pair_str)
         pair = day_schedule[pair_str]
         subj = pair.get("subject", "—")
@@ -480,7 +479,7 @@ def all_cmd(message):
     else:
         bot.reply_to(message, text)
 
-Илья, [04.12.2025 19:13]
+
 @bot.message_handler(commands=["bells"])
 def bells_cmd(message):
     remember_user(message)
@@ -610,6 +609,7 @@ def who_cmd(message):
 def tracking_handler(message):
     # просто запоминаем юзера, НИЧЕГО не отвечаем
     remember_user(message)
+
 
 # ================== УВЕДОМЛЕНИЯ ЗА 5 МИНУТ ДО ПАРЫ ==================
 
