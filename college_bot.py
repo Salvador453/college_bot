@@ -1,12 +1,13 @@
 import telebot
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from datetime import date, timedelta
 from pathlib import Path
 import json
+
+# ====== мини-вебсервер для Render ======
+from flask import Flask
 import threading
 import os
-
-# ===== Flask для Render =====
-from flask import Flask
 
 app = Flask(__name__)
 
@@ -16,33 +17,44 @@ def home():
 
 def run_flask():
     port = int(os.environ.get("PORT", 5000))
+    # host 0.0.0.0 обязателен, иначе Render не увидит порт
     app.run(host="0.0.0.0", port=port)
 
 threading.Thread(target=run_flask, daemon=True).start()
-# ===========================
+# =======================================
 
-# ========= НАСТРОЙКИ =========
+
+# ================== НАСТРОЙКИ ==================
 
 TOKEN = "7762300503:AAFEGU-fuw6fk7cJR0spchDDHFUyzxj-4WE"
+
 bot = telebot.TeleBot(TOKEN)
 
-ADMIN_IDS = {1509389908}
+# на всякий случай выпиливаем вебхук, чтобы не ловить 409
+try:
+    bot.remove_webhook()
+except Exception as e:
+    print("Ошибка при удалении webhook:", e)
 
+# твой Telegram ID (узнаешь в @userinfobot / @getmyid_bot)
+ADMIN_IDS = {1509389908}  # <-- замени на своё число
+
+# Неделя, которая начинается в ПН 01.12.2025 – це ЗНАМЕННИК
 REFERENCE_MONDAY = date(2025, 12, 1)
 REFERENCE_WEEK_TYPE = "знаменник"
 
 SCHEDULE_FILE = "schedule.json"
 
-# ========= ВРЕМЯ ПАР =========
-
+# Расклад дзвінків
 BELL_SCHEDULE = {
     "monday": {
         1: "08:30–09:50",
         2: "10:00–11:20",
         3: "11:50–13:10",
-        4: "13:20–13:50",
+        4: "13:20–13:50",   # орг. год.
+        5: "14:00–15:20",   # про запас
     },
-    "other": {
+    "other": {  # вівторок–пʼятниця
         1: "08:30–09:50",
         2: "10:00–11:20",
         3: "11:50–13:10",
@@ -52,13 +64,54 @@ BELL_SCHEDULE = {
 }
 
 DAY_ALIASES = {
-    "понеділок": "monday", "пн": "monday",
-    "вівторок": "tuesday", "вт": "tuesday",
-    "середа": "wednesday", "ср": "wednesday",
-    "четвер": "thursday", "чт": "thursday",
-    "пʼятниця": "friday", "п'ятниця": "friday", "пт": "friday",
-    "субота": "saturday", "сб": "saturday",
-    "неділя": "sunday", "нд": "sunday",
+    # понеділок
+    "понеділок": "monday",
+    "понедельник": "monday",
+    "пн": "monday",
+    "mon": "monday",
+    "monday": "monday",
+
+    # вівторок
+    "вівторок": "tuesday",
+    "вторник": "tuesday",
+    "вт": "tuesday",
+    "tue": "tuesday",
+    "tuesday": "tuesday",
+
+    # середа
+    "середа": "wednesday",
+    "ср": "wednesday",
+    "wed": "wednesday",
+    "wednesday": "wednesday",
+
+    # четвер
+    "четвер": "thursday",
+    "чт": "thursday",
+    "thu": "thursday",
+    "thursday": "thursday",
+
+    # п’ятниця
+    "пʼятниця": "friday",
+    "п'ятниця": "friday",
+    "пятниця": "friday",
+    "пятница": "friday",
+    "пт": "friday",
+    "fri": "friday",
+    "friday": "friday",
+
+    # субота
+    "субота": "saturday",
+    "суббота": "saturday",
+    "сб": "saturday",
+    "sat": "saturday",
+    "saturday": "saturday",
+
+    # неділя
+    "неділя": "sunday",
+    "воскресенье": "sunday",
+    "нд": "sunday",
+    "sun": "sunday",
+    "sunday": "sunday",
 }
 
 DAYS_RU = {
@@ -71,261 +124,400 @@ DAYS_RU = {
     "sunday": "Неділя",
 }
 
+# ==== Google Meet ссылки по предметам (ключи ДОЛЖНЫ совпадать с subject в расписании) ====
 
-# ========= GOOGLE MEET ССЫЛКИ =========
-
-LINKS = {
-    "Фізика": "https://meet.google.com/yqs-gkhh-xqm",
-    "Всесвітня історія": "https://meet.google.com/ejg-gvrv-iox",
-    "Історія України": "https://meet.google.com/mpc-znwb-gkq",
-    "Іноземна мова": "https://meet.google.com/xfq-qeab-vis",
-    "Інформатика": "https://meet.google.com/qhx-qkcv-sds",
-    "Математика": "https://meet.google.com/nnn-qzzy-yjf",
-    "Фізична культура": "https://meet.google.com/swm-bpmx-dfb",
-    "Географія": "https://meet.google.com/euh-zuqa-igg",
-    "Організаційна година": "https://meet.google.com/hai-zbrq-pnb",
-    "Зарубіжна література": "https://meet.google.com/hug-ddec-mop",
-    "Українська література": "https://meet.google.com/ogm-ssbj-jzd",
-    "Громадянська освіта": "https://meet.google.com/mzw-uedt-fzf",
-    "Технології": "https://meet.google.com/oap-sefr-fgc",
-    "Українська мова": "https://meet.google.com/wof-fggd-pet",
-    "Захист України": "https://meet.google.com/mev-azeu-tiw",
-    "Хімія": "https://meet.google.com/nup-vusc-tgs",
-    "Біологія": "https://meet.google.com/dgr-knfu-apt",
+SUBJECT_MEET_LINKS = {
+    "Фізика і астрономія": "https://meet.google.com/yqs-gkhh-xqm?authuser=0&hs=179",
+    "Всесвітня історія": "https://meet.google.com/ejg-gvrv-iox?authuser=0&hs=179",
+    "Історія України": "https://meet.google.com/mpc-znwb-gkq?authuser=0&hs=179",
+    "Іноземна мова": "https://meet.google.com/xfq-qeab-vis?authuser=0&hs=179",
+    "Інформатика": "https://meet.google.com/qhx-qkcv-sds?authuser=0&hs=179",
+    "Математика": "https://meet.google.com/nnn-qzzy-yjf?authuser=0&hs=179",
+    "Фізична культура": "https://meet.google.com/swm-bpmx-dfb?authuser=0&hs=179",
+    "Географія": "https://meet.google.com/euh-zuqa-igg?authuser=0&hs=179",
+    "Організаційна година": "https://meet.google.com/hai-zbrq-pnb?authuser=0&hs=179",
+    "Зарубіжна література": "https://meet.google.com/hug-ddec-mop?authuser=0&hs=179",
+    "Українська література": "https://meet.google.com/ogm-ssbj-jzd?authuser=0&hs=179",
+    "Громадянська освіта": "https://meet.google.com/mzw-uedt-fzf?authuser=0&hs=179",
+    "Технології": "https://meet.google.com/oap-sefr-fgc?authuser=0&hs=179",
+    "Українська мова": "https://meet.google.com/wof-fggd-pet?authuser=0&hs=179",
+    "Захист України": "https://meet.google.com/mev-azeu-tiw?authuser=0&hs=179",
+    "Хімія": "https://meet.google.com/nup-vusc-tgs?authuser=0&hs=179",
+    "Біологія і екологія": "https://meet.google.com/dgr-knfu-apt?authuser=0&hs=179",
 }
 
 
-# ========= БАЗОВОЕ РАСПИСАНИЕ =========
+# ================== РАСПИСАНИЕ (LOAD / SAVE) ==================
 
 def default_schedule():
+    # ---------- ПОНЕДІЛОК ----------
+    monday_chys = {
+        "1": {"subject": "Фізична культура", "room": "с/з №2"},
+        "2": {"subject": "Інформатика", "room": "202"},
+        "3": {"subject": "Фізика і астрономія", "room": "129"},
+        "4": {"subject": "Організаційна година", "room": "205"},
+    }
+    monday_znam = {
+        "1": {"subject": "Фізична культура", "room": "с/з №2"},
+        "2": {"subject": "Інформатика", "room": "202"},
+        "3": {"subject": "Математика", "room": "121"},
+        "4": {"subject": "Організаційна година", "room": "205"},
+    }
+
+    # ---------- ВІВТОРОК ----------
+    tuesday_chys = {
+        "2": {"subject": "Хімія", "room": "16"},
+        "3": {"subject": "Біологія і екологія", "room": "16"},
+        "4": {"subject": "Громадянська освіта", "room": "114"},
+    }
+    tuesday_znam = {
+        "1": {"subject": "Інформатика", "room": "239"},
+        "2": {"subject": "Хімія", "room": "16"},
+        "3": {"subject": "Біологія і екологія", "room": "16"},
+        "4": {"subject": "Громадянська освіта", "room": "114"},
+    }
+
+    # ---------- СЕРЕДА ----------
+    wednesday_chys = {
+        "1": {"subject": "Іноземна мова", "room": "224а"},
+        "2": {"subject": "Всесвітня історія", "room": "114"},
+        "3": {"subject": "Математика", "room": "121"},
+        "4": {"subject": "Географія", "room": "123"},
+    }
+    wednesday_znam = {
+        "1": {"subject": "Іноземна мова", "room": "224а"},
+        "2": {"subject": "Історія України", "room": "114"},
+        "3": {"subject": "Математика", "room": "121"},
+        "4": {"subject": "Географія", "room": "123"},
+    }
+
+    # ---------- ЧЕТВЕР ----------
+    thursday_chys = {
+        "2": {"subject": "Українська мова", "room": "307"},
+        "3": {"subject": "Фізика і астрономія", "room": "129"},
+    }
+    thursday_znam = {
+        "1": {"subject": "Технології", "room": "207"},
+        "2": {"subject": "Українська мова", "room": "307"},
+        "3": {"subject": "Фізика і астрономія", "room": "129"},
+    }
+
+    # ---------- ПʼЯТНИЦЯ ----------
+    friday_chys = {
+        "1": {"subject": "Українська література", "room": "209"},
+        "2": {"subject": "Фізична культура", "room": "с/з №2"},
+        "3": {"subject": "Захист України", "room": "242 / 201"},
+    }
+    friday_znam = {
+        "1": {"subject": "Українська література", "room": "209"},
+        "2": {"subject": "Зарубіжна література", "room": "116"},
+        "3": {"subject": "Захист України", "room": "242 / 201"},
+    }
+
     return {
-        "monday": {
-            "чисельник": {
-                "1": {"subject": "Фізична культура", "room": "с/з №2"},
-                "2": {"subject": "Інформатика", "room": "202"},
-                "3": {"subject": "Фізика", "room": "129"},
-                "4": {"subject": "Організаційна година", "room": "205"},
-            },
-            "знаменник": {
-                "1": {"subject": "Фізична культура", "room": "с/з №2"},
-                "2": {"subject": "Інформатика", "room": "202"},
-                "3": {"subject": "Математика", "room": "121"},
-                "4": {"subject": "Організаційна година", "room": "205"},
-            }
-        },
-
-        "tuesday":
-        {
-            "чисельник": {
-                "2": {"subject": "Хімія", "room": "16"},
-                "3": {"subject": "Біологія", "room": "16"},
-                "4": {"subject": "Громадянська освіта", "room": "114"},
-            },
-            "знаменник": {
-                "1": {"subject": "Інформатика", "room": "239"},
-                "2": {"subject": "Хімія", "room": "16"},
-                "3": {"subject": "Біологія", "room": "16"},
-                "4": {"subject": "Громадянська освіта", "room": "114"},
-            }
-        },
-
-        "wednesday":
-        {
-            "чисельник": {
-                "1": {"subject": "Іноземна мова", "room": "224а"},
-                "2": {"subject": "Всесвітня історія", "room": "114"},
-                "3": {"subject": "Математика", "room": "121"},
-                "4": {"subject": "Географія", "room": "123"},
-            },
-            "знаменник": {
-                "1": {"subject": "Іноземна мова", "room": "224а"},
-                "2": {"subject": "Історія України", "room": "114"},
-                "3": {"subject": "Математика", "room": "121"},
-                "4": {"subject": "Географія", "room": "123"},
-            }
-        },
-
-        "thursday":
-        {
-            "чисельник": {
-                "2": {"subject": "Українська мова", "room": "307"},
-                "3": {"subject": "Фізика", "room": "129"},
-            },
-            "знаменник": {
-                "1": {"subject": "Технології", "room": "207"},
-                "2": {"subject": "Українська мова", "room": "307"},
-                "3": {"subject": "Фізика", "room": "129"},
-            }
-        },
-
-        "friday":
-        {
-            "чисельник": {
-                "1": {"subject": "Українська література", "room": "209"},
-                "2": {"subject": "Фізична культура", "room": "с/з №2"},
-                "3": {"subject": "Захист України", "room": "242 / 201"},
-            },
-            "знаменник": {
-                "1": {"subject": "Українська література", "room": "209"},
-                "2": {"subject": "Зарубіжна література", "room": "116"},
-                "3": {"subject": "Захист України", "room": "242 / 201"},
-            }
-        },
-
+        "monday": {"чисельник": monday_chys, "знаменник": monday_znam},
+        "tuesday": {"чисельник": tuesday_chys, "знаменник": tuesday_znam},
+        "wednesday": {"чисельник": wednesday_chys, "знаменник": wednesday_znam},
+        "thursday": {"чисельник": thursday_chys, "знаменник": thursday_znam},
+        "friday": {"чисельник": friday_chys, "знаменник": friday_znam},
         "saturday": {"чисельник": {}, "знаменник": {}},
         "sunday": {"чисельник": {}, "знаменник": {}},
     }
 
 
 def load_schedule():
-    if not Path(SCHEDULE_FILE).exists():
+    path = Path(SCHEDULE_FILE)
+    if not path.exists():
         return default_schedule()
-    return json.loads(Path(SCHEDULE_FILE).read_text(encoding="utf-8"))
+    with path.open("r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 def save_schedule(data):
-    Path(SCHEDULE_FILE).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    path = Path(SCHEDULE_FILE)
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 schedule = load_schedule()
 
 
-# ========= ВСПОМОГАТЕЛЬНЫЕ =========
+# ================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==================
 
-def get_week_type(d=None):
-    if d is None:
-        d = date.today()
-    diff = (d - REFERENCE_MONDAY).days // 7
-    return REFERENCE_WEEK_TYPE if diff % 2 == 0 else ("чисельник" if REFERENCE_WEEK_TYPE == "знаменник" else "знаменник")
-
-
-def get_day_key(d=None):
-    if d is None:
-        d = date.today()
-    return ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"][d.weekday()]
+def get_week_type(target_date=None):
+    if target_date is None:
+        target_date = date.today()
+    delta_days = (target_date - REFERENCE_MONDAY).days
+    weeks_passed = delta_days // 7
+    if weeks_passed % 2 == 0:
+        return REFERENCE_WEEK_TYPE
+    else:
+        return "чисельник" if REFERENCE_WEEK_TYPE == "знаменник" else "знаменник"
 
 
-def get_pair_time(day, num):
-    return BELL_SCHEDULE["monday" if day == "monday" else "other"].get(num)
+def get_day_key(target_date=None):
+    if target_date is None:
+        target_date = date.today()
+    weekday = target_date.weekday()
+    mapping = {
+        0: "monday",
+        1: "tuesday",
+        2: "wednesday",
+        3: "thursday",
+        4: "friday",
+        5: "saturday",
+        6: "sunday",
+    }
+    return mapping[weekday]
 
 
-# ========= КНОПКИ GOOGLE MEET =========
+def get_pair_time(day_key, pair_num):
+    if day_key == "monday":
+        return BELL_SCHEDULE["monday"].get(pair_num)
+    else:
+        return BELL_SCHEDULE["other"].get(pair_num)
 
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-def send_day_with_buttons(message, d):
+def get_day_struct(d):
+    """Возвращает (day_key, used_week_type, day_schedule)"""
+    week_type = get_week_type(d)
     day_key = get_day_key(d)
-    week = get_week_type(d)
-    day = schedule.get(day_key, {}).get(week, {})
 
-    header = f"{DAYS_RU[day_key]}, {d.strftime('%d.%m.%Y')}\nТиждень: {week.upper()}\n"
-    bot.send_message(message.chat.id, header)
+    day_data = schedule.get(day_key, {})
+    day_schedule = day_data.get(week_type, {})
+    used_week_type = week_type
 
-    if not day:
-        bot.send_message(message.chat.id, "Пар немає")
-        return
+    if not day_schedule:
+        other = "знаменник" if week_type == "чисельник" else "чисельник"
+        if day_data.get(other):
+            day_schedule = day_data[other]
+            used_week_type = f"{week_type} (як у {other})"
 
-    for pair_str in sorted(day.keys(), key=lambda x: int(x)):
-        pair = day[pair_str]
-        subj = pair["subject"]
+    return day_key, used_week_type, day_schedule
+
+
+def format_day_schedule(d):
+    day_key, used_week_type, day_schedule = get_day_struct(d)
+
+    header = f"{DAYS_RU[day_key]}, {d.strftime('%d.%m.%Y')}\nТиждень: {used_week_type.upper()}\n\n"
+
+    if not day_schedule:
+        return header + "Пар немає ✅"
+
+    lines = [header]
+    for pair_str in sorted(day_schedule.keys(), key=lambda x: int(x)):
+        pair_num = int(pair_str)
+        pair = day_schedule[pair_str]
+        time_txt = get_pair_time(day_key, pair_num) or "час ?"
+        subj = pair.get("subject", "—")
         room = pair.get("room", "")
-        time_txt = get_pair_time(day_key, int(pair_str)) or "?"
-        link = LINKS.get(subj, "")
-
-        text = f"{pair_str}) {time_txt} — {subj}"
+        line = f"{pair_num}) {time_txt} — {subj}"
         if room:
-            text += f" ({room})"
+            line += f" ({room})"
+        lines.append(line)
 
-        markup = None
-        if link:
-            markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton("💻 Приєднатися до уроку", url=link))
-
-        bot.send_message(message.chat.id, text, reply_markup=markup)
+    return "\n".join(lines)
 
 
-# ========= КОМАНДЫ =========
+def build_day_markup(d):
+    """Кнопки с Meet-ссылками для конкретной даты."""
+    day_key, used_week_type, day_schedule = get_day_struct(d)
+    markup = InlineKeyboardMarkup(row_width=1)
+    has_buttons = False
+
+    for pair_str in sorted(day_schedule.keys(), key=lambda x: int(x)):
+        pair_num = int(pair_str)
+        pair = day_schedule[pair_str]
+        subj = pair.get("subject", "—")
+        url = SUBJECT_MEET_LINKS.get(subj)
+        if not url:
+            continue
+        text = f"{pair_num}) {subj}"
+        markup.add(InlineKeyboardButton(text=text, url=url))
+        has_buttons = True
+
+    return markup if has_buttons else None
+
+
+def format_full_schedule():
+    lines = []
+    for day_key in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
+        lines.append(f"📅 {DAYS_RU[day_key]}")
+        for wt in ["чисельник", "знаменник"]:
+            lines.append(f"  🔹 {wt.upper()}:")
+            day_schedule = schedule.get(day_key, {}).get(wt, {})
+            if not day_schedule:
+                lines.append("    — немає пар")
+            else:
+                for pair_str in sorted(day_schedule.keys(), key=lambda x: int(x)):
+                    pair_num = int(pair_str)
+                    pair = day_schedule[pair_str]
+                    time_txt = get_pair_time(day_key, pair_num) or "час ?"
+                    subj = pair.get("subject", "—")
+                    room = pair.get("room", "")
+                    line = f"    {pair_num}) {time_txt} — {subj}"
+                    if room:
+                        line += f" ({room})"
+                    lines.append(line)
+        lines.append("")
+    return "\n".join(lines)
+
+
+def is_admin(message) -> bool:
+    return message.from_user.id in ADMIN_IDS
+
+
+# ================== КОМАНДЫ ДЛЯ ВСЕХ ==================
 
 @bot.message_handler(commands=["start", "help"])
-def welcome(message):
-    bot.reply_to(message,
-                 "Привіт! Я бот розкладу 📚\n\n"
-                 "/week — яка тиждень\n"
-                 "/today — сьогоднішні пари\n"
-                 "/tomorrow — завтрашні\n"
-                 "/day <день>\n"
-                 "/all — весь розклад\n")
+def send_welcome(message):
+    text = (
+        "Привіт! Я бот розкладу групи 📚\n\n"
+        "Команди:\n"
+        "/week – яка зараз тиждень (чисельник / знаменник)\n"
+        "/today – розклад на сьогодні + кнопки з Meet\n"
+        "/tomorrow – розклад на завтра + кнопки з Meet\n"
+        "/day <день> – розклад на конкретний день (/day середа)\n"
+        "/all – повний розклад (без кнопок)\n"
+    )
+    bot.reply_to(message, text)
 
 
 @bot.message_handler(commands=["week"])
-def week(message):
-    bot.reply_to(message, f"Зараз: *{get_week_type().upper()}*", parse_mode="Markdown")
+def week_cmd(message):
+    wt = get_week_type()
+    bot.reply_to(message, f"Зараз тиждень: *{wt.upper()}*", parse_mode="Markdown")
 
 
 @bot.message_handler(commands=["today"])
 def today_cmd(message):
-    send_day_with_buttons(message, date.today())
+    d = date.today()
+    text = format_day_schedule(d)
+    markup = build_day_markup(d)
+    bot.reply_to(message, text, reply_markup=markup)
 
 
 @bot.message_handler(commands=["tomorrow"])
 def tomorrow_cmd(message):
-    send_day_with_buttons(message, date.today() + timedelta(days=1))
+    d = date.today() + timedelta(days=1)
+    text = format_day_schedule(d)
+    markup = build_day_markup(d)
+    bot.reply_to(message, text, reply_markup=markup)
 
 
 @bot.message_handler(commands=["day"])
 def day_cmd(message):
     parts = message.text.split(maxsplit=1)
     if len(parts) == 1:
-        bot.reply_to(message, "Приклад: /day середа")
+        bot.reply_to(message, "Приклад: /day вівторок")
         return
-    key = DAY_ALIASES.get(parts[1].lower())
-    if not key:
-        bot.reply_to(message, "Невідомий день")
+    day_raw = parts[1].strip().lower()
+    day_key = DAY_ALIASES.get(day_raw)
+    if not day_key:
+        bot.reply_to(message, "Не розумію день. Приклад: /day понеділок")
         return
+
     today = date.today()
-    weekday = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-    target = weekday.index(key)
-    shift = (target - weekday.index(get_day_key(today))) % 7
-    d = today + timedelta(days=shift)
-    send_day_with_buttons(message, d)
+    today_key = get_day_key(today)
+    keys_order = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    idx_today = keys_order.index(today_key)
+    idx_target = keys_order.index(day_key)
+    shift = (idx_target - idx_today) % 7
+    target_date = today + timedelta(days=shift)
+
+    text = format_day_schedule(target_date)
+    markup = build_day_markup(target_date)
+    bot.reply_to(message, text, reply_markup=markup)
 
 
-# ========= ADMIN /setpair =========
+@bot.message_handler(commands=["all"])
+def all_cmd(message):
+    text = format_full_schedule()
+    if len(text) > 4000:
+        for i in range(0, len(text), 4000):
+            bot.reply_to(message, text[i:i + 4000])
+    else:
+        bot.reply_to(message, text)
 
-def is_admin(msg):
-    return msg.from_user.id in ADMIN_IDS
+
+# ================== АДМИН-КОМАНДЫ ==================
+
+@bot.message_handler(commands=["adminhelp"])
+def admin_help(message):
+    if not is_admin(message):
+        return
+    text = (
+        "Адмін-команди:\n\n"
+        "/setpair <день> <номер> <тиждень> <предмет> ; <аудиторія>\n\n"
+        "Приклади:\n"
+        "/setpair понеділок 2 чисельник Інформатика ; 202\n"
+        "/setpair середа 3 знаменник Математика ; 121\n\n"
+        "День: понеділок/вівторок/середа/четвер/пʼятниця (можна скорочено: пн, вт, ср...).\n"
+        "Тиждень: чисельник/знаменник (можна: чис / зн)."
+    )
+    bot.reply_to(message, text)
+
 
 @bot.message_handler(commands=["setpair"])
-def setpair(message):
+def setpair_cmd(message):
     if not is_admin(message):
         return
 
     try:
         _, rest = message.text.split(" ", 1)
-        day_raw, num, week_raw, subj_room = rest.split(maxsplit=3)
-    except:
-        bot.reply_to(message, "Формат:\n/setpair день номер тиждень предмет ; аудиторія")
+    except ValueError:
+        bot.reply_to(message, "Формат: /setpair <день> <номер> <тиждень> <предмет> ; <аудиторія>")
         return
 
+    parts = rest.split(maxsplit=3)
+    if len(parts) < 4:
+        bot.reply_to(message, "Формат: /setpair <день> <номер> <тиждень> <предмет> ; <аудиторія>")
+        return
+
+    day_raw, pair_str, week_raw, subj_room_raw = parts
     day_key = DAY_ALIASES.get(day_raw.lower())
     if not day_key:
-        bot.reply_to(message, "День некоректний")
+        bot.reply_to(message, "День некоректний. Приклад: понеділок / вівторок / середа / четвер / пʼятниця.")
         return
 
-    week_type = "чисельник" if week_raw.startswith("чис") else "знаменник"
+    try:
+        pair_num = int(pair_str)
+    except ValueError:
+        bot.reply_to(message, "Номер пари має бути числом, напр.: 1, 2, 3, 4")
+        return
 
-    if ";" in subj_room:
-        subject, room = [x.strip() for x in subj_room.split(";", 1)]
+    w_raw = week_raw.lower()
+    if w_raw.startswith("чис"):
+        week_type = "чисельник"
+    elif w_raw.startswith("зн"):
+        week_type = "знаменник"
     else:
-        subject, room = subj_room, ""
+        bot.reply_to(message, "Тиждень має бути 'чисельник' або 'знаменник'")
+        return
 
-    schedule[day_key][week_type][str(num)] = {"subject": subject, "room": room}
+    if ";" in subj_room_raw:
+        subject, room = [x.strip() for x in subj_room_raw.split(";", 1)]
+    else:
+        subject = subj_room_raw.strip()
+        room = ""
+
+    schedule.setdefault(day_key, {}).setdefault(week_type, {})
+    schedule[day_key][week_type][str(pair_num)] = {
+        "subject": subject,
+        "room": room,
+    }
     save_schedule(schedule)
 
-    bot.reply_to(message, "Готово. Оновлено.")
+    time_txt = get_pair_time(day_key, pair_num) or "час ?"
+    bot.reply_to(
+        message,
+        f"Ок, оновив:\n"
+        f"{DAYS_RU[day_key]}, пара {pair_num} ({week_type})\n"
+        f"{time_txt} — {subject} {f'({room})' if room else ''}"
+    )
 
 
-# ========= START =========
+# ================== СТАРТ БОТА ==================
 
-print("BOT started.")
+print("Бот запущен...")
 bot.infinity_polling()
