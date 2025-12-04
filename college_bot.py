@@ -22,7 +22,7 @@ except Exception as e:
     print("Ошибка при удалении webhook:", e)
 
 # твой Telegram ID (узнаешь в @userinfobot / @getmyid_bot)
-ADMIN_IDS = {1599898989}  # <-- замени на своё число
+ADMIN_IDS = {1509389908}  # <-- замени на своё число
 
 # Неделя, которая начинается в ПН 01.12.2025 – це ЗНАМЕННИК
 REFERENCE_MONDAY = date(2025, 12, 1)
