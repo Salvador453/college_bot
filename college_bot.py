@@ -10,7 +10,7 @@ from flask import Flask
 import threading
 import os
 
-from openai import OpenAI  # <<< GPT ИМПОРТ
+from openai import OpenAI  # клиент для DeepSeek
 
 app = Flask(__name__)
 
@@ -20,7 +20,6 @@ def home():
 
 def run_flask():
     port = int(os.environ.get("PORT", 5000))
-    # host 0.0.0.0 обязателен, иначе Render не увидит порт
     app.run(host="0.0.0.0", port=port)
 
 threading.Thread(target=run_flask, daemon=True).start()
@@ -33,11 +32,14 @@ TOKEN = "7762300503:AAF17NRUSz6aeUG6Ek8rXMMtuYT3GQ2lPEM"
 
 bot = telebot.TeleBot(TOKEN)
 
-# === GPT-КЛИЕНТ ===
-OPENAI_API_KEY = "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"
+# === DEEPSEEK-КЛИЕНТ ===
+# ВСТАВЬ СЮДА СВОЙ КЛЮЧ ОТ DEEPSEEK вместо YOUR_DEEPSEEK_API_KEY_HERE
+DEEPSEEK_API_KEY = "sk-69e9f9b1101843659f6f738cd565be3d"
 
-client = OpenAI(api_key=OPENAI_API_KEY)
-
+client = OpenAI(
+    api_key=DEEPSEEK_API_KEY,
+    base_url="https://api.deepseek.com"
+)
 
 # на всякий случай выпиливаем вебхук, чтобы не ловить 409
 try:
@@ -408,14 +410,14 @@ def is_admin(message) -> bool:
     return message.from_user.id in ADMIN_IDS
 
 
-# ================== GPT-ФУНКЦИИ ==================
+# ================== GPT/DEEPSEEK-ФУНКЦИИ ==================
 
 def ask_gpt(user_message: str, user_id: int | None = None) -> str:
     """
-    Отправляет текст в GPT и возвращает ответ.
+    Отправляет текст в DeepSeek и возвращает ответ.
     """
     system_prompt = (
-        "Ти дружній шкільний бот-асистент для учнів. "
+        "Ти дружній бот-асистент для учнів. "
         "Спілкуйся українською, можна трохи неформально. "
         "Відповідай коротко і по суті. "
         "Якщо питають про розклад, дзвінки або онлайн-уроки, "
@@ -424,7 +426,7 @@ def ask_gpt(user_message: str, user_id: int | None = None) -> str:
 
     try:
         resp = client.chat.completions.create(
-            model="gpt-4.1-mini",
+            model="deepseek-chat",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
@@ -432,7 +434,7 @@ def ask_gpt(user_message: str, user_id: int | None = None) -> str:
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:
-        print("Помилка GPT:", e)
+        print("Помилка GPT/DeepSeek:", e)
         return "Щось пішло не так з ІІ 😢 Спробуй ще раз пізніше."
 
 
@@ -450,7 +452,7 @@ def send_welcome(message):
         "/day <день> – розклад на конкретний день (/day середа)\n"
         "/all – повний розклад (без кнопок)\n"
         "/bells – розклад дзвінків\n"
-        "/ai <текст> – запит до ІІ (чат з GPT)\n"
+        "/ai <текст> – запит до ІІ (чат із DeepSeek)\n"
     )
     bot.reply_to(message, text)
 
@@ -529,7 +531,7 @@ def bells_cmd(message):
     bot.reply_to(message, txt)
 
 
-# ============= КОМАНДА /ai ДЛЯ GPT =============
+# ============= КОМАНДА /ai ДЛЯ DEEPSEEK =============
 
 @bot.message_handler(commands=["ai"])
 def ai_cmd(message):
