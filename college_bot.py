@@ -11,7 +11,7 @@ import os
 
 # ================== НАСТРОЙКИ ==================
 
-TOKEN = "8279399872:AAH7NjweBtoYs97WZ9Vme-6BRzE219LP0T4"
+TOKEN = "7762300503:AAFEGU-fuw6fk7cJR0spchDDHFUyzxj-4WE"
 
 bot = telebot.TeleBot(TOKEN)
 
