@@ -1,8 +1,9 @@
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from pathlib import Path
 import json
+import time
 
 # ====== мини-вебсервер для Render ======
 from flask import Flask
@@ -36,14 +37,15 @@ try:
 except Exception as e:
     print("Ошибка при удалении webhook:", e)
 
-# твой Telegram ID (узнаешь в @userinfobot / @getmyid_bot)
-ADMIN_IDS = {1509389908}  # <-- замени на своё число
+# твой Telegram ID
+ADMIN_IDS = {1509389908}
 
 # Неделя, которая начинается в ПН 01.12.2025 – це ЗНАМЕННИК
 REFERENCE_MONDAY = date(2025, 12, 1)
 REFERENCE_WEEK_TYPE = "знаменник"
 
 SCHEDULE_FILE = "schedule.json"
+USERS_FILE = "users.json"   # тут будем хранить кто писал боту
 
 # Расклад дзвінків
 BELL_SCHEDULE = {
@@ -242,6 +244,37 @@ def save_schedule(data):
 schedule = load_schedule()
 
 
+# ================== USERS (для /who и уведомлений) ==================
+
+def load_users():
+    path = Path(USERS_FILE)
+    if not path.exists():
+        return {}
+    with path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_users():
+    path = Path(USERS_FILE)
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(users, f, ensure_ascii=False, indent=2)
+
+
+users = load_users()
+
+
+def remember_user(message):
+    u = message.from_user
+    uid = str(u.id)
+    info = users.get(uid, {})
+    info["id"] = u.id
+    info["username"] = u.username or ""
+    info["first_name"] = u.first_name or ""
+    info["last_seen"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    users[uid] = info
+    save_users()
+
+
 # ================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==================
 
 def get_week_type(target_date=None):
@@ -371,6 +404,7 @@ def is_admin(message) -> bool:
 
 @bot.message_handler(commands=["start", "help"])
 def send_welcome(message):
+    remember_user(message)
     text = (
         "Привіт! Я бот розкладу групи 📚\n\n"
         "Команди:\n"
@@ -379,18 +413,21 @@ def send_welcome(message):
         "/tomorrow – розклад на завтра + кнопки з Meet\n"
         "/day <день> – розклад на конкретний день (/day середа)\n"
         "/all – повний розклад (без кнопок)\n"
+        "/bells – розклад дзвінків\n"
     )
     bot.reply_to(message, text)
 
 
 @bot.message_handler(commands=["week"])
 def week_cmd(message):
+    remember_user(message)
     wt = get_week_type()
     bot.reply_to(message, f"Зараз тиждень: *{wt.upper()}*", parse_mode="Markdown")
 
 
 @bot.message_handler(commands=["today"])
 def today_cmd(message):
+    remember_user(message)
     d = date.today()
     text = format_day_schedule(d)
     markup = build_day_markup(d)
@@ -399,6 +436,7 @@ def today_cmd(message):
 
 @bot.message_handler(commands=["tomorrow"])
 def tomorrow_cmd(message):
+    remember_user(message)
     d = date.today() + timedelta(days=1)
     text = format_day_schedule(d)
     markup = build_day_markup(d)
@@ -407,6 +445,7 @@ def tomorrow_cmd(message):
 
 @bot.message_handler(commands=["day"])
 def day_cmd(message):
+    remember_user(message)
     parts = message.text.split(maxsplit=1)
     if len(parts) == 1:
         bot.reply_to(message, "Приклад: /day вівторок")
@@ -432,6 +471,7 @@ def day_cmd(message):
 
 @bot.message_handler(commands=["all"])
 def all_cmd(message):
+    remember_user(message)
     text = format_full_schedule()
     if len(text) > 4000:
         for i in range(0, len(text), 4000):
@@ -440,15 +480,29 @@ def all_cmd(message):
         bot.reply_to(message, text)
 
 
+@bot.message_handler(commands=["bells"])
+def bells_cmd(message):
+    remember_user(message)
+    txt = "🔔 Розклад дзвінків\n\nПонеділок:\n"
+    for num in sorted(BELL_SCHEDULE["monday"].keys()):
+        txt += f"{num}) {BELL_SCHEDULE['monday'][num]}\n"
+    txt += "\nВівторок–Пʼятниця:\n"
+    for num in sorted(BELL_SCHEDULE["other"].keys()):
+        txt += f"{num}) {BELL_SCHEDULE['other'][num]}\n"
+    bot.reply_to(message, txt)
+
+
 # ================== АДМИН-КОМАНДЫ ==================
 
 @bot.message_handler(commands=["adminhelp"])
 def admin_help(message):
+    remember_user(message)
     if not is_admin(message):
         return
     text = (
         "Адмін-команди:\n\n"
-        "/setpair <день> <номер> <тиждень> <предмет> ; <аудиторія>\n\n"
+        "/setpair <день> <номер> <тиждень> <предмет> ; <аудиторія>\n"
+        "/who – список користувачів, які писали боту\n\n"
         "Приклади:\n"
         "/setpair понеділок 2 чисельник Інформатика ; 202\n"
         "/setpair середа 3 знаменник Математика ; 121\n\n"
@@ -460,6 +514,7 @@ def admin_help(message):
 
 @bot.message_handler(commands=["setpair"])
 def setpair_cmd(message):
+    remember_user(message)
     if not is_admin(message):
         return
 
@@ -517,7 +572,124 @@ def setpair_cmd(message):
     )
 
 
+@bot.message_handler(commands=["who"])
+def who_cmd(message):
+    remember_user(message)
+    if not is_admin(message):
+        return
+    if not users:
+        bot.reply_to(message, "Поки що ніхто не писав боту 😅")
+        return
+
+    lines = []
+    # сортируем по last_seen (новые сверху)
+    def sort_key(item):
+        return item[1].get("last_seen", "")
+
+    for uid, info in sorted(users.items(), key=sort_key, reverse=True):
+        uname = info.get("username") or ""
+        name = info.get("first_name") or ""
+        last_seen = info.get("last_seen", "")
+        line = f"{uid} "
+        if uname:
+            line += f"@{uname} "
+        if name:
+            line += f"{name} "
+        if last_seen:
+            line += f"— {last_seen}"
+        lines.append(line.strip())
+
+    text = "👥 Користувачі, які писали боту:\n\n" + "\n".join(lines[:50])
+    bot.reply_to(message, text)
+
+
+# ================== ТРЕКИНГ ВСЕХ СООБЩЕНИЙ ==================
+
+@bot.message_handler(func=lambda m: True, content_types=['text'])
+def tracking_handler(message):
+    # просто запоминаем юзера, НИЧЕГО не отвечаем
+    remember_user(message)
+
+
+# ================== УВЕДОМЛЕНИЯ ЗА 5 МИНУТ ДО ПАРЫ ==================
+
+notified_pairs = set()  # типа "2025-12-04_1"
+
+def send_pair_notification(pair_key, pair_num, pair, day_key):
+    text = "Через ~5 хвилин пара:\n"
+    time_txt = get_pair_time(day_key, pair_num) or "час ?"
+    subj = pair.get("subject", "—")
+    room = pair.get("room", "")
+    text += f"{pair_num}) {time_txt} — {subj}"
+    if room:
+        text += f" ({room})"
+
+    url = SUBJECT_MEET_LINKS.get(subj)
+    markup = None
+    if url:
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton(text="Увійти в Google Meet", url=url))
+
+    # рассылаем всем, кто хоть раз писал боту
+    for uid_str in list(users.keys()):
+        uid = int(uid_str)
+        try:
+            bot.send_message(uid, text, reply_markup=markup)
+        except Exception as e:
+            print(f"Не зміг відправити нотіфікацію {uid}: {e}")
+
+
+def notifications_loop():
+    global notified_pairs
+    while True:
+        try:
+            now = datetime.now()
+            d = now.date()
+            day_key, used_week_type, day_schedule = get_day_struct(d)
+            date_key = d.isoformat()
+
+            # иногда очищаем старые уведомления (в 00:00)
+            if now.hour == 0 and now.minute < 5:
+                notified_pairs = set()
+
+            for pair_str, pair in day_schedule.items():
+                try:
+                    pair_num = int(pair_str)
+                except ValueError:
+                    continue
+
+                time_txt = get_pair_time(day_key, pair_num)
+                if not time_txt:
+                    continue
+
+                start_str = time_txt.split("–")[0]  # "08:30"
+                try:
+                    hh, mm = map(int, start_str.split(":"))
+                except Exception:
+                    continue
+
+                pair_dt = datetime(d.year, d.month, d.day, hh, mm)
+                delta_sec = (pair_dt - now).total_seconds()
+
+                # окно от 4 до 6 минут до пари
+                if 240 <= delta_sec <= 360:
+                    key = f"{date_key}_{pair_str}"
+                    if key not in notified_pairs:
+                        print("Отправляю уведомление для пары", key)
+                        send_pair_notification(key, pair_num, pair, day_key)
+                        notified_pairs.add(key)
+
+        except Exception as e:
+            print("Ошибка в notifications_loop:", e)
+
+        time.sleep(60)
+
+
+threading.Thread(target=notifications_loop, daemon=True).start()
+
+
 # ================== СТАРТ БОТА ==================
 
 print("Бот запущен...")
 bot.infinity_polling()
+
