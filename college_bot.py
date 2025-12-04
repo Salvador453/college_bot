@@ -10,9 +10,7 @@ from flask import Flask
 import threading
 import os
 
-from openai import OpenAI  # клиент для DeepSeek
-
-app = Flask(__name__)
+app = Flask(name)
 
 @app.route("/")
 def home():
@@ -20,6 +18,7 @@ def home():
 
 def run_flask():
     port = int(os.environ.get("PORT", 5000))
+    # host 0.0.0.0 обязателен, иначе Render не увидит порт
     app.run(host="0.0.0.0", port=port)
 
 threading.Thread(target=run_flask, daemon=True).start()
@@ -31,15 +30,6 @@ threading.Thread(target=run_flask, daemon=True).start()
 TOKEN = "7762300503:AAF17NRUSz6aeUG6Ek8rXMMtuYT3GQ2lPEM"
 
 bot = telebot.TeleBot(TOKEN)
-
-# === DEEPSEEK-КЛИЕНТ ===
-# ВСТАВЬ СЮДА СВОЙ КЛЮЧ ОТ DEEPSEEK вместо YOUR_DEEPSEEK_API_KEY_HERE
-DEEPSEEK_API_KEY = "sk-71c7ea27ecd24e699332f013214a6f28"
-
-client = OpenAI(
-    api_key=DEEPSEEK_API_KEY,
-    base_url="https://api.deepseek.com"
-)
 
 # на всякий случай выпиливаем вебхук, чтобы не ловить 409
 try:
@@ -55,7 +45,7 @@ REFERENCE_MONDAY = date(2025, 12, 1)
 REFERENCE_WEEK_TYPE = "знаменник"
 
 SCHEDULE_FILE = "schedule.json"
-USERS_FILE = "users.json"   # тут будем хранить хто писав боту
+USERS_FILE = "users.json"   # тут будем хранить кто писал боту
 
 # Расклад дзвінків
 BELL_SCHEDULE = {
@@ -226,7 +216,8 @@ def default_schedule():
         "3": {"subject": "Захист України", "room": "242 / 201"},
     }
 
-    return {
+
+return {
         "monday": {"чисельник": monday_chys, "знаменник": monday_znam},
         "tuesday": {"чисельник": tuesday_chys, "знаменник": tuesday_znam},
         "wednesday": {"чисельник": wednesday_chys, "знаменник": wednesday_znam},
@@ -368,7 +359,7 @@ def build_day_markup(d):
     markup = InlineKeyboardMarkup(row_width=1)
     has_buttons = False
 
-    for pair_str in sorted(day_schedule.keys(), key=lambda x: int(x)):
+for pair_str in sorted(day_schedule.keys(), key=lambda x: int(x)):
         pair_num = int(pair_str)
         pair = day_schedule[pair_str]
         subj = pair.get("subject", "—")
@@ -410,34 +401,6 @@ def is_admin(message) -> bool:
     return message.from_user.id in ADMIN_IDS
 
 
-# ================== GPT/DEEPSEEK-ФУНКЦИИ ==================
-
-def ask_gpt(user_message: str, user_id: int | None = None) -> str:
-    """
-    Отправляет текст в DeepSeek и возвращает ответ.
-    """
-    system_prompt = (
-        "Ти дружній бот-асистент для учнів. "
-        "Спілкуйся українською, можна трохи неформально. "
-        "Відповідай коротко і по суті. "
-        "Якщо питають про розклад, дзвінки або онлайн-уроки, "
-        "згадай, що є команди /today, /tomorrow, /week, /all, /bells."
-    )
-
-    try:
-        resp = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
-        )
-        return resp.choices[0].message.content.strip()
-    except Exception as e:
-        print("Помилка GPT/DeepSeek:", e)
-        return "Щось пішло не так з ІІ 😢 Спробуй ще раз пізніше."
-
-
 # ================== КОМАНДЫ ДЛЯ ВСЕХ ==================
 
 @bot.message_handler(commands=["start", "help"])
@@ -452,7 +415,6 @@ def send_welcome(message):
         "/day <день> – розклад на конкретний день (/day середа)\n"
         "/all – повний розклад (без кнопок)\n"
         "/bells – розклад дзвінків\n"
-        "/ai <текст> – запит до ІІ (чат із DeepSeek)\n"
     )
     bot.reply_to(message, text)
 
@@ -518,7 +480,7 @@ def all_cmd(message):
     else:
         bot.reply_to(message, text)
 
-
+Илья, [04.12.2025 19:13]
 @bot.message_handler(commands=["bells"])
 def bells_cmd(message):
     remember_user(message)
@@ -529,21 +491,6 @@ def bells_cmd(message):
     for num in sorted(BELL_SCHEDULE["other"].keys()):
         txt += f"{num}) {BELL_SCHEDULE['other'][num]}\n"
     bot.reply_to(message, txt)
-
-
-# ============= КОМАНДА /ai ДЛЯ DEEPSEEK =============
-
-@bot.message_handler(commands=["ai"])
-def ai_cmd(message):
-    remember_user(message)
-    parts = message.text.split(maxsplit=1)
-    if len(parts) == 1:
-        bot.reply_to(message, "Напиши так: /ai твій запит до ІІ\nНапр.: /ai поясни тему з фізики про силу тяжіння")
-        return
-
-    user_query = parts[1]
-    reply = ask_gpt(user_query, message.from_user.id)
-    bot.reply_to(message, reply)
 
 
 # ================== АДМИН-КОМАНДЫ ==================
@@ -663,7 +610,6 @@ def who_cmd(message):
 def tracking_handler(message):
     # просто запоминаем юзера, НИЧЕГО не отвечаем
     remember_user(message)
-
 
 # ================== УВЕДОМЛЕНИЯ ЗА 5 МИНУТ ДО ПАРЫ ==================
 
