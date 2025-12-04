@@ -34,9 +34,8 @@ TOKEN = "7762300503:AAF17NRUSz6aeUG6Ek8rXMMtuYT3GQ2lPEM"
 bot = telebot.TeleBot(TOKEN)
 
 # === GPT-КЛИЕНТ ===
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    print("⚠️ OPENAI_API_KEY не задан в переменных окружения! GPT працювати не буде.")
+OPENAI_API_KEY = "sk-fQroNWEeEZWLp00wF2-m0JXw-q0gAmhKTi4EALXQb8cQf6u8rcdKGaKuuAlAqeA8rarA610o82T3BlbkFJBEyCOu4PjUVr6PJMf1UzMDKEwJgOTyPv5vrmlkWniDezlxwSxT8aN0UrwufUFp5aZYYrBLs_IA"
+
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
