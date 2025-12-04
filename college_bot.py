@@ -10,6 +10,8 @@ from flask import Flask
 import threading
 import os
 
+from openai import OpenAI  # <<< GPT ИМПОРТ
+
 app = Flask(__name__)
 
 @app.route("/")
@@ -31,6 +33,13 @@ TOKEN = "7762300503:AAF17NRUSz6aeUG6Ek8rXMMtuYT3GQ2lPEM"
 
 bot = telebot.TeleBot(TOKEN)
 
+# === GPT-КЛИЕНТ ===
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    print("⚠️ OPENAI_API_KEY не задан в переменных окружения! GPT працювати не буде.")
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+
 # на всякий случай выпиливаем вебхук, чтобы не ловить 409
 try:
     bot.remove_webhook()
@@ -45,7 +54,7 @@ REFERENCE_MONDAY = date(2025, 12, 1)
 REFERENCE_WEEK_TYPE = "знаменник"
 
 SCHEDULE_FILE = "schedule.json"
-USERS_FILE = "users.json"   # тут будем хранить кто писал боту
+USERS_FILE = "users.json"   # тут будем хранить хто писав боту
 
 # Расклад дзвінків
 BELL_SCHEDULE = {
@@ -400,6 +409,34 @@ def is_admin(message) -> bool:
     return message.from_user.id in ADMIN_IDS
 
 
+# ================== GPT-ФУНКЦИИ ==================
+
+def ask_gpt(user_message: str, user_id: int | None = None) -> str:
+    """
+    Отправляет текст в GPT и возвращает ответ.
+    """
+    system_prompt = (
+        "Ти дружній шкільний бот-асистент для учнів. "
+        "Спілкуйся українською, можна трохи неформально. "
+        "Відповідай коротко і по суті. "
+        "Якщо питають про розклад, дзвінки або онлайн-уроки, "
+        "згадай, що є команди /today, /tomorrow, /week, /all, /bells."
+    )
+
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        print("Помилка GPT:", e)
+        return "Щось пішло не так з ІІ 😢 Спробуй ще раз пізніше."
+
+
 # ================== КОМАНДЫ ДЛЯ ВСЕХ ==================
 
 @bot.message_handler(commands=["start", "help"])
@@ -414,6 +451,7 @@ def send_welcome(message):
         "/day <день> – розклад на конкретний день (/day середа)\n"
         "/all – повний розклад (без кнопок)\n"
         "/bells – розклад дзвінків\n"
+        "/ai <текст> – запит до ІІ (чат з GPT)\n"
     )
     bot.reply_to(message, text)
 
@@ -490,6 +528,21 @@ def bells_cmd(message):
     for num in sorted(BELL_SCHEDULE["other"].keys()):
         txt += f"{num}) {BELL_SCHEDULE['other'][num]}\n"
     bot.reply_to(message, txt)
+
+
+# ============= КОМАНДА /ai ДЛЯ GPT =============
+
+@bot.message_handler(commands=["ai"])
+def ai_cmd(message):
+    remember_user(message)
+    parts = message.text.split(maxsplit=1)
+    if len(parts) == 1:
+        bot.reply_to(message, "Напиши так: /ai твій запит до ІІ\nНапр.: /ai поясни тему з фізики про силу тяжіння")
+        return
+
+    user_query = parts[1]
+    reply = ask_gpt(user_query, message.from_user.id)
+    bot.reply_to(message, reply)
 
 
 # ================== АДМИН-КОМАНДЫ ==================
@@ -692,4 +745,3 @@ threading.Thread(target=notifications_loop, daemon=True).start()
 
 print("Бот запущен...")
 bot.infinity_polling()
-
