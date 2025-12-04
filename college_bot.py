@@ -34,7 +34,7 @@ bot = telebot.TeleBot(TOKEN)
 
 # === DEEPSEEK-КЛИЕНТ ===
 # ВСТАВЬ СЮДА СВОЙ КЛЮЧ ОТ DEEPSEEK вместо YOUR_DEEPSEEK_API_KEY_HERE
-DEEPSEEK_API_KEY = "sk-69e9f9b1101843659f6f738cd565be3d"
+DEEPSEEK_API_KEY = "sk-71c7ea27ecd24e699332f013214a6f28"
 
 client = OpenAI(
     api_key=DEEPSEEK_API_KEY,
