@@ -126,7 +126,7 @@ DAYS_RU = {
     "sunday": "Неділя",
 }
 
-# ==== Google Meet ссылки по предметам (ключи ДОЛЖНЫ совпадать с subject в расписании) ====
+# ==== Google Meet ссылки по предметам ====
 
 SUBJECT_MEET_LINKS = {
     "Фізика і астрономія": "https://meet.google.com/yqs-gkhh-xqm?authuser=0&hs=179",
@@ -143,10 +143,15 @@ SUBJECT_MEET_LINKS = {
     "Громадянська освіта": "https://meet.google.com/mzw-uedt-fzf?authuser=0&hs=179",
     "Технології": "https://meet.google.com/oap-sefr-fgc?authuser=0&hs=179",
     "Українська мова": "https://meet.google.com/wof-fggd-pet?authuser=0&hs=179",
+    # базовый вариант Захисту (если вдруг пригодится)
     "Захист України": "https://meet.google.com/mev-azeu-tiw?authuser=0&hs=179",
     "Хімія": "https://meet.google.com/nup-vusc-tgs?authuser=0&hs=179",
     "Біологія і екологія": "https://meet.google.com/dgr-knfu-apt?authuser=0&hs=179",
 }
+
+# отдельные ссылки по Захисту
+DEFENCE_SAPKO_URL = "https://meet.google.com/mev-azeu-tiw?authuser=0&hs=179"
+DEFENCE_KYYASHCHUK_URL = "https://meet.google.com/nmf-wxwf-ouv"
 
 
 # ================== РАСПИСАНИЕ (LOAD / SAVE) ==================
@@ -311,6 +316,17 @@ def get_pair_time(day_key, pair_num):
         return BELL_SCHEDULE["other"].get(pair_num)
 
 
+def get_meet_link_for_subject(subj: str):
+    """Ищем Meet-ссылку по предмету без учета регистра и лишних пробелов."""
+    if not subj:
+        return None
+    s = subj.strip().lower()
+    for key, url in SUBJECT_MEET_LINKS.items():
+        if key.strip().lower() == s:
+            return url
+    return None
+
+
 def get_day_struct(d):
     """Возвращает (day_key, used_week_type, day_schedule)"""
     week_type = get_week_type(d)
@@ -362,7 +378,22 @@ def build_day_markup(d):
         pair_num = int(pair_str)
         pair = day_schedule[pair_str]
         subj = pair.get("subject", "—")
-        url = SUBJECT_MEET_LINKS.get(subj)
+        subj_norm = subj.strip().lower()
+
+        # Особый случай: Захист України — две кнопки (Сапко и Киящук)
+        if subj_norm == "захист україни":
+            markup.add(InlineKeyboardButton(
+                text=f"{pair_num}) {subj} — Сапко",
+                url=DEFENCE_SAPKO_URL
+            ))
+            markup.add(InlineKeyboardButton(
+                text=f"{pair_num}) {subj} — Киящук",
+                url=DEFENCE_KYYASHCHUK_URL
+            ))
+            has_buttons = True
+            continue
+
+        url = get_meet_link_for_subject(subj)
         if not url:
             continue
         text = f"{pair_num}) {subj}"
@@ -576,12 +607,25 @@ def setpair_cmd(message):
 
     # ====== РОЗСИЛКА ВСІМ, ХТО ПИСАВ БОТУ ======
     changer = message.from_user.first_name or ""
+    subj_norm = subject.strip().lower()
+    meet_url = get_meet_link_for_subject(subject)
+
     change_text = (
         "⚠ Зміни в розкладі!\n\n"
         f"{DAYS_RU[day_key]}, пара {pair_num} ({week_type.upper()}):\n"
-        f"{time_txt} — {subject}{f' ({room})' if room else ''}\n\n"
-        f"Змінено користувачем: {changer}"
+        f"{time_txt} — {subject}{f' ({room})' if room else ''}"
     )
+
+    # если Захист України — сразу два линка
+    if subj_norm == "захист україни":
+        change_text += (
+            f"\n🔗 Meet (Сапко): {DEFENCE_SAPKO_URL}"
+            f"\n🔗 Meet (Киящук): {DEFENCE_KYYASHCHUK_URL}"
+        )
+    elif meet_url:
+        change_text += f"\n🔗 Meet: {meet_url}"
+
+    change_text += f"\n\nЗмінено користувачем: {changer}"
 
     for uid_str in list(users.keys()):
         try:
@@ -643,11 +687,18 @@ def send_pair_notification(pair_key, pair_num, pair, day_key):
     if room:
         text += f" ({room})"
 
-    url = SUBJECT_MEET_LINKS.get(subj)
+    subj_norm = subj.strip().lower()
     markup = None
-    if url:
-        markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton(text="Увійти в Google Meet", url=url))
+
+    if subj_norm == "захист україни":
+        markup = InlineKeyboardMarkup(row_width=1)
+        markup.add(InlineKeyboardButton(text="Захист України — Сапко", url=DEFENCE_SAPKO_URL))
+        markup.add(InlineKeyboardButton(text="Захист України — Киящук", url=DEFENCE_KYYASHCHUK_URL))
+    else:
+        url = get_meet_link_for_subject(subj)
+        if url:
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton(text="Увійти в Google Meet", url=url))
 
     # рассылаем всем, кто хоть раз писал боту
     for uid_str in list(users.keys()):
@@ -662,12 +713,13 @@ def notifications_loop():
     global notified_pairs
     while True:
         try:
-            now = datetime.now()
+            # локальное время: UTC+2 (Україна)
+            now = datetime.utcnow() + timedelta(hours=2)
             d = now.date()
             day_key, used_week_type, day_schedule = get_day_struct(d)
             date_key = d.isoformat()
 
-            # иногда очищаем старые уведомления (в 00:00)
+            # очищаем старые уведомления в районе полуночи
             if now.hour == 0 and now.minute < 5:
                 notified_pairs = set()
 
