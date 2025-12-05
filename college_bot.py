@@ -556,6 +556,7 @@ def setpair_cmd(message):
         subject = subj_room_raw.strip()
         room = ""
 
+    # обновляем расписание
     schedule.setdefault(day_key, {}).setdefault(week_type, {})
     schedule[day_key][week_type][str(pair_num)] = {
         "subject": subject,
@@ -564,12 +565,30 @@ def setpair_cmd(message):
     save_schedule(schedule)
 
     time_txt = get_pair_time(day_key, pair_num) or "час ?"
+
+    # ответ админу
     bot.reply_to(
         message,
         f"Ок, оновив:\n"
         f"{DAYS_RU[day_key]}, пара {pair_num} ({week_type})\n"
         f"{time_txt} — {subject} {f'({room})' if room else ''}"
     )
+
+    # ====== РОЗСИЛКА ВСІМ, ХТО ПИСАВ БОТУ ======
+    changer = message.from_user.first_name or ""
+    change_text = (
+        "⚠ Зміни в розкладі!\n\n"
+        f"{DAYS_RU[day_key]}, пара {pair_num} ({week_type.upper()}):\n"
+        f"{time_txt} — {subject}{f' ({room})' if room else ''}\n\n"
+        f"Змінено користувачем: {changer}"
+    )
+
+    for uid_str in list(users.keys()):
+        try:
+            uid = int(uid_str)
+            bot.send_message(uid, change_text)
+        except Exception as e:
+            print(f"Не зміг відправити повідомлення про зміну {uid}: {e}")
 
 
 @bot.message_handler(commands=["who"])
