@@ -37,10 +37,14 @@ try:
 except Exception as e:
     print("Ошибка при удалении webhook:", e)
 
-# твой Telegram ID + сюда можешь добавить ещё одного адміна
+# твой Telegram ID (сюда прилетают /wont)
+MAIN_ADMIN_ID = 1509389908
+
+# список админов, которые могут юзать /setpair, /who и т.д.
 ADMIN_IDS = {
-    1509389908,  # твій ID
-    1573294591,  # 👉 сюди впиши ID другого адміна
+    1509389908,
+    1573294591,
+    # если захочешь, сюда можно добавить ещё айдишки
 }
 
 # Неделя, которая начинается в ПН 01.12.2025 – це ЗНАМЕННИК
@@ -471,6 +475,7 @@ def send_welcome(message):
         "/day <день> – розклад на конкретний день (/day середа)\n"
         "/all – повний розклад (без кнопок)\n"
         "/bells – розклад дзвінків\n"
+        "/wont – повідомити, що тебе не буде на парі\n"
     )
     bot.reply_to(message, text)
 
@@ -547,6 +552,124 @@ def bells_cmd(message):
     for num in sorted(BELL_SCHEDULE["other"].keys()):
         txt += f"{num}) {BELL_SCHEDULE['other'][num]}\n"
     bot.reply_to(message, txt)
+
+
+# ================== КОМАНДА /wont (відсутність студента) ==================
+
+@bot.message_handler(commands=["wont"])
+def wont_cmd(message):
+    """
+    Формат (для студентів):
+
+    /wont Прізвище Ім'я 1 понеділок не буду, бо лікар
+
+    тобто:
+    - спочатку ПІБ (може бути 2–3 слова),
+    - потім номер пари (цифра),
+    - потім день (понеділок/вівторок/...),
+    - далі довільний текст з причиною.
+    """
+    remember_user(message)
+
+    if message.text.strip() == "/wont":
+        bot.reply_to(
+            message,
+            "Приклад:\n"
+            "/wont Давіташвілі Ілля 1 понеділок не буду, бо лікар"
+        )
+        return
+
+    try:
+        _, rest = message.text.split(" ", 1)
+    except ValueError:
+        bot.reply_to(
+            message,
+            "Приклад:\n"
+            "/wont Давіташвілі Ілля 1 понеділок не буду, бо лікар"
+        )
+        return
+
+    tokens = rest.split()
+    if len(tokens) < 4:
+        bot.reply_to(
+            message,
+            "Мало даних. Приклад:\n"
+            "/wont Прізвище Ім'я 1 понеділок причина..."
+        )
+        return
+
+    # ищем номер пары — первую цифру
+    pair_index = None
+    for i, t in enumerate(tokens):
+        if t.isdigit():
+            pair_index = i
+            break
+
+    if pair_index is None or pair_index == 0 or pair_index + 2 > len(tokens):
+        bot.reply_to(
+            message,
+            "Не можу розібрати номер пари/день.\n"
+            "Приклад:\n"
+            "/wont Давіташвілі Ілля 1 понеділок не буду, бо лікар"
+        )
+        return
+
+    # имя: всё до номера пары
+    name = " ".join(tokens[:pair_index]).strip()
+    pair_str = tokens[pair_index]
+    day_raw = tokens[pair_index + 1].lower()
+    reason_tokens = tokens[pair_index + 2:]
+    reason = " ".join(reason_tokens).strip() if reason_tokens else "без причини"
+
+    # проверяем номер пары
+    try:
+        pair_num = int(pair_str)
+    except ValueError:
+        bot.reply_to(message, "Номер пари має бути числом. Приклад: 1, 2, 3...")
+        return
+
+    # проверяем день
+    day_key = DAY_ALIASES.get(day_raw)
+    if not day_key:
+        bot.reply_to(
+            message,
+            "Не розумію день. Використовуй, наприклад: понеділок, вівторок, середа..."
+        )
+        return
+
+    day_name_ua = DAYS_RU.get(day_key, day_raw)
+
+    # кто отправил
+    u = message.from_user
+    sender = []
+    if u.username:
+        sender.append(f"@{u.username}")
+    if u.first_name:
+        sender.append(u.first_name)
+    sender_str = " ".join(sender) or f"id {u.id}"
+
+    now_str = (datetime.utcnow() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M")
+
+    # текст, который прилетит ТОЛЬКО тебе (MAIN_ADMIN_ID)
+    admin_text = (
+        "📢 Повідомлення про відсутність студента\n\n"
+        f"👤 Студент: {name}\n"
+        f"📅 День: {day_name_ua}\n"
+        f"🔢 Пара: {pair_num}\n"
+        f"📝 Причина: {reason}\n\n"
+        f"Відправник: {sender_str}\n"
+        f"Час (UTC+2): {now_str}"
+    )
+
+    try:
+        bot.send_message(MAIN_ADMIN_ID, admin_text)
+    except Exception as e:
+        print(f"Не зміг відправити /wont адмінину: {e}")
+
+    bot.reply_to(
+        message,
+        "Ок, я передав інформацію, що тебе не буде на парі ✅"
+    )
 
 
 # ================== АДМИН-КОМАНДЫ ==================
@@ -646,7 +769,7 @@ def setpair_cmd(message):
     if subj_norm == "захист україни":
         change_text += (
             f"\n🔗 Meet (Сапко): {DEFENCE_SAPKO_URL}"
-            f"\n🔗 Meet (Киящук): {DEFENCE_KYYASHЧУK_URL}"
+            f"\n🔗 Meet (Киящук): {DEFENCE_KYYASHCHUK_URL}"
         )
     elif meet_url:
         change_text += f"\n🔗 Meet: {meet_url}"
@@ -671,6 +794,7 @@ def who_cmd(message):
         return
 
     lines = []
+
     # сортируем по last_seen (новые сверху)
     def sort_key(item):
         return item[1].get("last_seen", "")
