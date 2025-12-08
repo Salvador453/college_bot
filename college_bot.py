@@ -37,8 +37,11 @@ try:
 except Exception as e:
     print("Ошибка при удалении webhook:", e)
 
-# твой Telegram ID
-ADMIN_IDS = {1509389908}
+# твой Telegram ID + сюда можешь добавить ещё одного адміна
+ADMIN_IDS = {
+    1509389908,  # твій ID
+    1573294591,  # 👉 сюди впиши ID другого адміна
+}
 
 # Неделя, которая начинается в ПН 01.12.2025 – це ЗНАМЕННИК
 REFERENCE_MONDAY = date(2025, 12, 1)
@@ -152,6 +155,19 @@ SUBJECT_MEET_LINKS = {
 # отдельные ссылки по Захисту
 DEFENCE_SAPKO_URL = "https://meet.google.com/mev-azeu-tiw?authuser=0&hs=179"
 DEFENCE_KYYASHCHUK_URL = "https://meet.google.com/nmf-wxwf-ouv"
+
+# предметы, которые считаем "немає пари" — по ним не слать нагадування
+NO_LESSON_SUBJECTS = {
+    "немає пари",
+    "нема пари",
+    "нет пары",
+    "немає уроку",
+    "нема уроку",
+    "уроку немає",
+    "-",
+    "—",
+    "",
+}
 
 
 # ================== РАСПИСАНИЕ (LOAD / SAVE) ==================
@@ -327,6 +343,12 @@ def get_meet_link_for_subject(subj: str):
     return None
 
 
+def is_empty_pair(pair: dict) -> bool:
+    """Проверяем, що по цій парі фактично 'немає пари'."""
+    subj = (pair.get("subject") or "").strip().lower()
+    return subj in NO_LESSON_SUBJECTS
+
+
 def get_day_struct(d):
     """Возвращает (day_key, used_week_type, day_schedule)"""
     week_type = get_week_type(d)
@@ -379,6 +401,10 @@ def build_day_markup(d):
         pair = day_schedule[pair_str]
         subj = pair.get("subject", "—")
         subj_norm = subj.strip().lower()
+
+        # если пари фактично немає — ні кнопок, ні нічого
+        if is_empty_pair(pair):
+            continue
 
         # Особый случай: Захист України — две кнопки (Сапко и Киящук)
         if subj_norm == "захист україни":
@@ -620,7 +646,7 @@ def setpair_cmd(message):
     if subj_norm == "захист україни":
         change_text += (
             f"\n🔗 Meet (Сапко): {DEFENCE_SAPKO_URL}"
-            f"\n🔗 Meet (Киящук): {DEFENCE_KYYASHCHUK_URL}"
+            f"\n🔗 Meet (Киящук): {DEFENCE_KYYASHЧУK_URL}"
         )
     elif meet_url:
         change_text += f"\n🔗 Meet: {meet_url}"
@@ -679,6 +705,10 @@ def tracking_handler(message):
 notified_pairs = set()  # типа "2025-12-04_1"
 
 def send_pair_notification(pair_key, pair_num, pair, day_key):
+    # якщо по цій парі стоїть "немає пари" — нічого не шлем
+    if is_empty_pair(pair):
+        return
+
     text = "Через ~5 хвилин пара:\n"
     time_txt = get_pair_time(day_key, pair_num) or "час ?"
     subj = pair.get("subject", "—")
@@ -727,6 +757,10 @@ def notifications_loop():
                 try:
                     pair_num = int(pair_str)
                 except ValueError:
+                    continue
+
+                # якщо тут "немає пари" — пропускаємо і не нагадуємо
+                if is_empty_pair(pair):
                     continue
 
                 time_txt = get_pair_time(day_key, pair_num)
