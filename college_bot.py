@@ -76,65 +76,81 @@ BELL_SCHEDULE = {
 }
 
 DAY_ALIASES = {
-    # понеділок
+    # понеділок / понедельник
     "понеділок": "monday",
     "понедельник": "monday",
     "пн": "monday",
+    "пн.": "monday",
     "пон": "monday",
+    "пон.": "monday",
     "mon": "monday",
     "monday": "monday",
 
-    # вівторок
+    # вівторок / вторник
     "вівторок": "tuesday",
     "вторник": "tuesday",
     "вт": "tuesday",
+    "вт.": "tuesday",
+    "втор": "tuesday",
     "tue": "tuesday",
     "tuesday": "tuesday",
 
-    # середа
+    # середа / среда
     "середа": "wednesday",
     "середу": "wednesday",
     "ср": "wednesday",
+    "ср.": "wednesday",
     "среда": "wednesday",
     "среду": "wednesday",
     "wed": "wednesday",
     "wednesday": "wednesday",
 
-    # четвер
+    # четвер / четверг
     "четвер": "thursday",
+    "четверг": "thursday",
     "чт": "thursday",
+    "чт.": "thursday",
     "чтв": "thursday",
     "thu": "thursday",
     "thursday": "thursday",
 
-    # п’ятниця
+    # п’ятниця / пятница
     "пʼятниця": "friday",
     "п'ятниця": "friday",
     "пʼятницю": "friday",
     "п'ятницю": "friday",
-    "пятниця": "friday",
     "пятница": "friday",
     "пятницу": "friday",
     "пт": "friday",
+    "пт.": "friday",
     "пят": "friday",
     "fri": "friday",
     "friday": "friday",
 
-    # субота
+    # субота / суббота
     "субота": "saturday",
+    "суботу": "saturday",
     "суббота": "saturday",
+    "субботу": "saturday",
     "сб": "saturday",
+    "сб.": "saturday",
     "sat": "saturday",
     "saturday": "saturday",
 
-    # неділя
+    # неділя / воскресенье
     "неділя": "sunday",
+    "неділю": "sunday",
     "воскресенье": "sunday",
+    "воскресенье": "sunday",  # на всякий кривой вариант
     "нд": "sunday",
+    "нд.": "sunday",
+    "вс": "sunday",
+    "вс.": "sunday",
     "вск": "sunday",
     "sun": "sunday",
     "sunday": "sunday",
 }
+
 
 DAYS_RU = {
     "monday": "Понеділок",
