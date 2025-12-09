@@ -370,6 +370,45 @@ def parse_absence_dt(s: str):
         return None
 
 
+def pretty_reason(reason: str) -> str:
+    """
+    Делаем причину короткой и нормальной:
+    - срезаем типичные куски "меня не будет", "мене не буде", "я не буду"
+    - убираем лишние запятые/пробелы
+    - режем до 60 символов
+    """
+    if not reason:
+        return ""
+
+    r = reason.strip()
+    low = r.lower()
+
+    patterns = [
+        "меня не будет",
+        "меня не будет на",
+        "мене не буде",
+        "мене не буде на",
+        "я не буду",
+        "я не буду на",
+        "не буду",
+        "не буду на",
+    ]
+
+    for p in patterns:
+        if low.startswith(p):
+            r = r[len(p):].lstrip(" ,.-")
+            break
+
+    if not r:
+        r = "без причини"
+
+    max_len = 60
+    if len(r) > max_len:
+        r = r[:max_len - 1].rstrip() + "…"
+
+    return r
+
+
 # ================== CHANGELOG (для /setpair, /changelog) ==================
 
 def load_changelog():
@@ -512,11 +551,9 @@ def build_day_markup(d):
         subj = pair.get("subject", "—")
         subj_norm = subj.strip().lower()
 
-        # если пари фактично немає — ні кнопок, ні нічого
         if is_empty_pair(pair):
             continue
 
-        # Особый случай: Захист України — две кнопки (Сапко и Киящук)
         if subj_norm == "захист україни":
             markup.add(InlineKeyboardButton(
                 text=f"{pair_num}) {subj} — Сапко",
@@ -571,16 +608,13 @@ def is_admin(message) -> bool:
 
 def detect_day_key_from_free_text(text: str):
     """
-    Пытаемся понять день из произвольного текста:
-    - слова типа 'понеділок', 'понедельник', 'середу', 'среду', 'пʼятницю', 'пятницу' и т.д. (из DAY_ALIASES)
-    - относительные: сьогодні/сегодня, завтра, післязавтра/послезавтра
+    Пытаемся понять день из произвольного текста
     """
     if not text:
         return None
 
     s = text.lower()
 
-    # относительные дни
     today_words = {"сьогодні", "сегодня", "today"}
     tomorrow_words = {"завтра", "tomorrow"}
     after_tomorrow_words = {"післязавтра", "послезавтра"}
@@ -596,7 +630,6 @@ def detect_day_key_from_free_text(text: str):
     if any(w in s for w in after_tomorrow_words):
         return get_day_key(today_date + timedelta(days=2))
 
-    # абсолютные дни (любая форма, которая есть в DAY_ALIASES)
     cleaned = s.replace(",", " ").replace(".", " ").replace(";", " ").replace("!", " ").replace("?", " ")
     for raw in cleaned.split():
         tok_clean = raw.strip(".,:;!?")
@@ -608,10 +641,7 @@ def detect_day_key_from_free_text(text: str):
 
 def extract_pairs_from_text(text: str):
     """
-    Ищем номера пар в тексте:
-    - цифры: 1, 2, 3, 4, 5
-    - цифра + суффиксы: 1й, 1-я, 2-га, 3я, 4та и т.п.
-    - слова типу 'первая', 'першу', 'вторую', 'друга', 'третью', 'четверту', 'пʼяту' і т.д.
+    Ищем номера пар в тексте
     """
     if not text:
         return []
@@ -619,7 +649,6 @@ def extract_pairs_from_text(text: str):
     s = text.lower()
     pairs = set()
 
-    # 1) любые цифры 1–5 с возможными буквами
     for m in re.findall(r"\b([1-5])\s*(?:й|я|ша|шу|та|у|ю|-й|-я|-ша|-та)?\b", s):
         try:
             num = int(m)
@@ -628,17 +657,11 @@ def extract_pairs_from_text(text: str):
         except ValueError:
             continue
 
-    # 2) словесные формы
     word_to_pair = {
-        # 1
         "перша": 1, "першу": 1, "первая": 1, "первую": 1, "первой": 1,
-        # 2
         "друга": 2, "другу": 2, "вторая": 2, "вторую": 2, "второй": 2,
-        # 3
         "третя": 3, "третю": 3, "третья": 3, "третью": 3,
-        # 4
         "четверта": 4, "четверту": 4, "четвертая": 4, "четвертую": 4,
-        # 5
         "пʼята": 5, "п'ята": 5, "пятая": 5, "пятую": 5, "пятой": 5,
     }
 
@@ -653,17 +676,13 @@ def extract_pairs_from_text(text: str):
 
 def extract_fio_from_text(rest: str, rest_lower: str, user):
     """
-    Вытаскиваем ФИО из начала строки:
-    - берём слова до дня недели или стоп-слов ('меня', 'мене', 'я', 'не')
-    - максимум 3 слова
-    - если ничего адекватного не получилось — подставляем имя/username юзера
+    Вытаскиваем ФИО из начала строки
     """
     tokens = rest.split()
     tokens_lower = rest_lower.split()
     if not tokens:
         return "", 0
 
-    # стоп-слова, после которых ФИО точно закончилось
     stopwords = {
         "меня", "мене", "мне", "мені",
         "я", "я,", "я.", "я:",
@@ -878,7 +897,7 @@ def now_cmd(message):
     if subj_norm == "захист україни":
         markup = InlineKeyboardMarkup(row_width=1)
         markup.add(InlineKeyboardButton(text="Захист України — Сапко", url=DEFENCE_SAPKO_URL))
-        markup.add(InlineKeyboardButton(text="Захист України — Киящук", url=DEFENCE_KYYASHЧУК_URL))
+        markup.add(InlineKeyboardButton(text="Захист України — Киящук", url=DEFENCE_KYYASHCHUK_URL))
     else:
         url = get_meet_link_for_subject(subj)
         if url:
@@ -948,10 +967,10 @@ def next_cmd(message):
     if subj_norm == "захист україни":
         markup = InlineKeyboardMarkup(row_width=1)
         markup.add(InlineKeyboardButton(text="Захист України — Сапко", url=DEFENCE_SAPKO_URL))
-        markup.add(InlineKeyboardButton(text="Захист України — Киящук", url=DEFENCE_KYYASHЧУК_URL))
+        markup.add(InlineKeyboardButton(text="Захист України — Киящук", url=DEFENCE_KYYASHCHUK_URL))
         text += (
             f"\n🔗 Meet (Сапко): {DEFENCE_SAPKO_URL}"
-            f"\n🔗 Meet (Киящук): {DEFENCE_KYYASHЧУК_URL}"
+            f"\n🔗 Meet (Киящук): {DEFENCE_KYYASHCHUK_URL}"
         )
     else:
         url = get_meet_link_for_subject(subj)
@@ -967,12 +986,6 @@ def next_cmd(message):
 
 @bot.message_handler(commands=["wont"])
 def wont_cmd(message):
-    """
-    Формат для студентів (можна довільно, головне щоб було ПІБ, день і пари):
-
-    /wont Давиташвили Илля мене не буде в середу на 1й парі і на 4 парі
-    /wont Давиташвили Илля завтра не буду на 2 і 3 парі бо/потому что хворію
-    """
     remember_user(message)
 
     if message.text.strip() == "/wont":
@@ -1010,7 +1023,6 @@ def wont_cmd(message):
     rest_lower = rest.lower()
     u = message.from_user
 
-    # 1) День
     day_key = detect_day_key_from_free_text(rest)
     if not day_key:
         bot.reply_to(
@@ -1021,7 +1033,6 @@ def wont_cmd(message):
         return
     day_name_ua = DAYS_RU.get(day_key, day_key)
 
-    # 2) ПАРИ
     pairs = extract_pairs_from_text(rest)
     if not pairs:
         bot.reply_to(
@@ -1031,7 +1042,6 @@ def wont_cmd(message):
         )
         return
 
-    # 3) ПІБ
     fio, fio_end_pos = extract_fio_from_text(rest, rest_lower, u)
 
     if len(fio.split()) < 2:
@@ -1051,7 +1061,6 @@ def wont_cmd(message):
         )
         return
 
-    # 4) Причина
     tail = rest[fio_end_pos:].lstrip(" ,.-—")
     tail_lower = tail.lower()
 
@@ -1075,7 +1084,6 @@ def wont_cmd(message):
     if not reason:
         reason = "—"
 
-    # 5) Хто відправив
     sender_parts = []
     if u.username:
         sender_parts.append(f"@{u.username}")
@@ -1209,7 +1217,7 @@ def setpair_cmd(message):
     if subj_norm == "захист україни":
         change_text += (
             f"\n🔗 Meet (Сапко): {DEFENCE_SAPKO_URL}"
-            f"\n🔗 Meet (Киящук): {DEFENCE_KYYASHЧУК_URL}"
+            f"\n🔗 Meet (Киящук): {DEFENCE_KYYASHCHUK_URL}"
         )
     elif meet_url:
         change_text += f"\n🔗 Meet: {meet_url}"
@@ -1282,7 +1290,6 @@ def stats_cmd(message):
     now = datetime.utcnow() + timedelta(hours=2)
     threshold = now - timedelta(days=days_back)
 
-    # name -> list[(dt, rec)]
     stats = {}
 
     for rec in absences:
@@ -1299,40 +1306,37 @@ def stats_cmd(message):
 
     lines = [f"📊 Статистика /wont {title}:\n"]
 
-    # сортируем по количеству /wont у студента (по убыванию)
     sorted_items = sorted(stats.items(), key=lambda x: len(x[1]), reverse=True)
 
     for i, (name, recs) in enumerate(sorted_items, start=1):
         total = len(recs)
         lines.append(f"{i}) {name} — {total} раз(и)")
 
-        # для каждого /wont показываем дату, день, пары и причину
         recs_sorted = sorted(recs, key=lambda x: x[0], reverse=True)
         for dt, rec in recs_sorted:
-            dt_str = dt.strftime("%Y-%m-%d %H:%M")
+            date_str = dt.strftime("%Y-%m-%d")
             day_key = rec.get("day_key", "")
             day_name = DAYS_RU.get(day_key, day_key)
 
             pair_val = rec.get("pair_num", "?")
-            # на всякий случай: если когда-то будем хранить список пар
             if isinstance(pair_val, (list, tuple, set)):
                 pair_str = ", ".join(str(p) for p in pair_val)
             else:
                 pair_str = str(pair_val)
 
-            reason = rec.get("reason", "")
-            if reason:
-                lines.append(f"   • {dt_str}, {day_name}, пара(и): {pair_str} — {reason}")
+            reason_raw = rec.get("reason", "")
+            reason_short = pretty_reason(reason_raw)
+
+            if reason_short:
+                lines.append(f"   • {date_str}, {day_name}, пара(и): {pair_str} — {reason_short}")
             else:
-                lines.append(f"   • {dt_str}, {day_name}, пара(и): {pair_str}")
+                lines.append(f"   • {date_str}, {day_name}, пара(и): {pair_str}")
 
-        lines.append("")  # пустая строка между студентами
+        lines.append("")
 
-    text = "\n".join(lines)
-    # на случай если текст вдруг > 4096 символов — режем на части
+    text = "\n".join(lines).strip()
     for i in range(0, len(text), 4000):
         bot.reply_to(message, text[i:i + 4000])
-
 
 
 # ================== /absent – хто сьогодні відсутній ==================
@@ -1480,7 +1484,7 @@ def whois_cmd(message):
 
         if last_rec:
             dt = parse_absence_dt(last_rec.get("created_at", "")) or None
-            dt_str = dt.strftime("%Y-%m-%d %H:%M") if dt else last_rec.get("created_at", "")
+            dt_str = dt.strftime("%Y-%m-%d %H:%М") if dt else last_rec.get("created_at", "")
             day_key = last_rec.get("day_key", "")
             day_name = DAYS_RU.get(day_key, day_key)
             pair_num = last_rec.get("pair_num", "?")
@@ -1523,7 +1527,7 @@ def send_pair_notification(pair_key, pair_num, pair, day_key):
     if subj_norm == "захист україни":
         markup = InlineKeyboardMarkup(row_width=1)
         markup.add(InlineKeyboardButton(text="Захист України — Сапко", url=DEFENCE_SAPKO_URL))
-        markup.add(InlineKeyboardButton(text="Захист України — Киящук", url=DEFENCE_KYYASHЧУК_URL))
+        markup.add(InlineKeyboardButton(text="Захист України — Киящук", url=DEFENCE_KYYASHCHUK_URL))
     else:
         url = get_meet_link_for_subject(subj)
         if url:
