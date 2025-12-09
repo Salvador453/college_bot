@@ -1282,23 +1282,57 @@ def stats_cmd(message):
     now = datetime.utcnow() + timedelta(hours=2)
     threshold = now - timedelta(days=days_back)
 
-    counts = {}
+    # name -> list[(dt, rec)]
+    stats = {}
+
     for rec in absences:
         dt = parse_absence_dt(rec.get("created_at", ""))
         if not dt or dt < threshold:
             continue
-        name = rec.get("name", "???")
-        counts[name] = counts.get(name, 0) + 1
 
-    if not counts:
+        name = rec.get("name", "???")
+        stats.setdefault(name, []).append((dt, rec))
+
+    if not stats:
         bot.reply_to(message, f"Немає даних по /wont {title}.")
         return
 
     lines = [f"📊 Статистика /wont {title}:\n"]
-    for i, (name, cnt) in enumerate(sorted(counts.items(), key=lambda x: x[1], reverse=True), start=1):
-        lines.append(f"{i}) {name} — {cnt} раз(и)")
 
-    bot.reply_to(message, "\n".join(lines))
+    # сортируем по количеству /wont у студента (по убыванию)
+    sorted_items = sorted(stats.items(), key=lambda x: len(x[1]), reverse=True)
+
+    for i, (name, recs) in enumerate(sorted_items, start=1):
+        total = len(recs)
+        lines.append(f"{i}) {name} — {total} раз(и)")
+
+        # для каждого /wont показываем дату, день, пары и причину
+        recs_sorted = sorted(recs, key=lambda x: x[0], reverse=True)
+        for dt, rec in recs_sorted:
+            dt_str = dt.strftime("%Y-%m-%d %H:%M")
+            day_key = rec.get("day_key", "")
+            day_name = DAYS_RU.get(day_key, day_key)
+
+            pair_val = rec.get("pair_num", "?")
+            # на всякий случай: если когда-то будем хранить список пар
+            if isinstance(pair_val, (list, tuple, set)):
+                pair_str = ", ".join(str(p) for p in pair_val)
+            else:
+                pair_str = str(pair_val)
+
+            reason = rec.get("reason", "")
+            if reason:
+                lines.append(f"   • {dt_str}, {day_name}, пара(и): {pair_str} — {reason}")
+            else:
+                lines.append(f"   • {dt_str}, {day_name}, пара(и): {pair_str}")
+
+        lines.append("")  # пустая строка между студентами
+
+    text = "\n".join(lines)
+    # на случай если текст вдруг > 4096 символов — режем на части
+    for i in range(0, len(text), 4000):
+        bot.reply_to(message, text[i:i + 4000])
+
 
 
 # ================== /absent – хто сьогодні відсутній ==================
