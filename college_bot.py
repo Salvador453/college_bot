@@ -1,10 +1,10 @@
-import telebot 
+import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from datetime import date, timedelta, datetime
 from pathlib import Path
 import json
 import time
-import re
+import re  # для парсинга пар
 
 # ====== мини-вебсервер для Render ======
 from flask import Flask
@@ -141,7 +141,7 @@ DAY_ALIASES = {
     "неділя": "sunday",
     "неділю": "sunday",
     "воскресенье": "sunday",
-    "воскресенье": "sunday",  # на всякий кривой вариант
+    "неделя": "sunday",
     "нд": "sunday",
     "нд.": "sunday",
     "вс": "sunday",
@@ -150,7 +150,6 @@ DAY_ALIASES = {
     "sun": "sunday",
     "sunday": "sunday",
 }
-
 
 DAYS_RU = {
     "monday": "Понеділок",
@@ -568,53 +567,158 @@ def is_admin(message) -> bool:
     return message.from_user.id in ADMIN_IDS
 
 
-# ================== ХЕЛПЕРЫ ДЛЯ ПАРСИНГА /wont ==================
+# ======== ДОП. ХЕЛПЕРЫ ДЛЯ /wont ========
 
 def detect_day_key_from_free_text(text: str):
     """
-    Пытаемся вытащить день недели из свободного текста.
-    Поддерживает:
-    - конкретный день: понеділок, пн, среду, середу, вт, ср, чт, пʼятницю и т.д.
-    - відносні: сьогодні, завтра, післязавтра, послезавтра
+    Пытаемся понять день из произвольного текста:
+    - слова типа 'понеділок', 'понедельник', 'середу', 'среду', 'пʼятницю', 'пятницу' и т.д. (из DAY_ALIASES)
+    - относительные: сьогодні/сегодня, завтра, післязавтра/послезавтра
     """
-    t = text.lower()
+    if not text:
+        return None
+
+    s = text.lower()
 
     # относительные дни
-    if any(word in t for word in ["сьогодні", "сегодня", "today"]):
-        return get_day_key(date.today())
-    if any(word in t for word in ["завтра", "tomorrow"]):
-        return get_day_key(date.today() + timedelta(days=1))
-    if any(word in t for word in ["післязавтра", "послезавтра"]):
-        return get_day_key(date.today() + timedelta(days=2))
+    today_words = {"сьогодні", "сегодня", "today"}
+    tomorrow_words = {"завтра", "tomorrow"}
+    after_tomorrow_words = {"післязавтра", "послезавтра"}
 
-    # чистим пунктуацию и смотрим по словарю DAY_ALIASES
-    cleaned = re.sub(r"[.,;:!?]", " ", t)
-    for token in cleaned.split():
-        if token in DAY_ALIASES:
-            return DAY_ALIASES[token]
+    today_date = date.today()
+
+    if any(w in s for w in today_words):
+        return get_day_key(today_date)
+
+    if any(w in s for w in tomorrow_words):
+        return get_day_key(today_date + timedelta(days=1))
+
+    if any(w in s for w in after_tomorrow_words):
+        return get_day_key(today_date + timedelta(days=2))
+
+    # абсолютные дни (любая форма, которая есть в DAY_ALIASES)
+    cleaned = s.replace(",", " ").replace(".", " ").replace(";", " ").replace("!", " ").replace("?", " ")
+    for raw in cleaned.split():
+        tok_clean = raw.strip(".,:;!?")
+        if tok_clean in DAY_ALIASES:
+            return DAY_ALIASES[tok_clean]
 
     return None
 
 
 def extract_pairs_from_text(text: str):
     """
-    Вытаскиваем номера пар из текста.
-    Понимает:
-    '1', '1й', '1-й', '1я', '1 пара', '1 парі', '1 паре', 'на 1й парі' и т.п.
-    Понимает несколько пар: 1, 2, 3; 1 і 4; 2 та 5; на 1 і 4 парі і т.д.
+    Ищем номера пар в тексте:
+    - цифры: 1, 2, 3, 4, 5
+    - цифра + суффиксы: 1й, 1-я, 2-га, 3я, 4та и т.п.
+    - слова типу 'первая', 'першу', 'вторую', 'друга', 'третью', 'четверту', 'пʼяту' і т.д.
     """
-    t = text.lower()
+    if not text:
+        return []
+
+    s = text.lower()
     pairs = set()
 
-    for m in re.finditer(r"(\d{1,2})\s*(?:-?й|-?я|пар[аеиі]?)?", t):
+    # 1) любые цифры 1–5 с возможными буквами
+    for m in re.findall(r"\b([1-5])\s*(?:й|я|ша|шу|та|у|ю|-й|-я|-ша|-та)?\b", s):
         try:
-            num = int(m.group(1))
+            num = int(m)
+            if 1 <= num <= 5:
+                pairs.add(num)
         except ValueError:
             continue
-        if 1 <= num <= 7:  # у нас максимум 5 пар, с запасом до 7
-            pairs.add(num)
+
+    # 2) словесные формы
+    word_to_pair = {
+        # 1
+        "перша": 1, "першу": 1, "первая": 1, "первую": 1, "первой": 1,
+        # 2
+        "друга": 2, "другу": 2, "вторая": 2, "вторую": 2, "второй": 2,
+        # 3
+        "третя": 3, "третю": 3, "третья": 3, "третью": 3,
+        # 4
+        "четверта": 4, "четверту": 4, "четвертая": 4, "четвертую": 4,
+        # 5
+        "пʼята": 5, "п'ята": 5, "пятая": 5, "пятую": 5, "пятой": 5,
+    }
+
+    cleaned = s.replace(",", " ").replace(".", " ").replace(";", " ").replace("!", " ").replace("?", " ")
+    for raw in cleaned.split():
+        tok = raw.strip(".,:;!?")
+        if tok in word_to_pair:
+            pairs.add(word_to_pair[tok])
 
     return sorted(pairs)
+
+
+def extract_fio_from_text(rest: str, rest_lower: str, user):
+    """
+    Вытаскиваем ФИО из начала строки:
+    - берём слова до дня недели или стоп-слов ('меня', 'мене', 'я', 'не')
+    - максимум 3 слова
+    - если ничего адекватного не получилось — подставляем имя/username юзера
+    """
+    tokens = rest.split()
+    tokens_lower = rest_lower.split()
+    if not tokens:
+        return "", 0
+
+    # стоп-слова, после которых ФИО точно закончилось
+    stopwords = {
+        "меня", "мене", "мне", "мені",
+        "я", "я,", "я.", "я:",
+        "меня,", "меня.", "меня:",
+        "не", "не,", "не.", "нет",
+        "у", "в",
+    }
+
+    relative_days = {
+        "сьогодні", "сегодня", "today",
+        "завтра", "tomorrow",
+        "післязавтра", "послезавтра",
+    }
+
+    day_idx = None
+    for i, tok in enumerate(tokens_lower):
+        tt = tok.strip(".,:;!?")
+        if tt in DAY_ALIASES or tt in relative_days:
+            day_idx = i
+            break
+
+    stop_idx = None
+    for i, tok in enumerate(tokens_lower):
+        tt = tok.strip(".,:;!?")
+        if tt in stopwords:
+            stop_idx = i
+            break
+
+    fio_end_idx = None
+    for idx in (day_idx, stop_idx):
+        if idx is not None:
+            fio_end_idx = idx if fio_end_idx is None else min(fio_end_idx, idx)
+
+    if fio_end_idx is None or fio_end_idx == 0:
+        fio_end_idx = min(len(tokens), 3)
+
+    fio_tokens = tokens[:fio_end_idx]
+    fio = " ".join(fio_tokens).strip(" ,.-—")
+
+    if fio_tokens:
+        joined = " ".join(fio_tokens)
+        pos = rest.find(joined)
+        fio_end_pos = pos + len(joined) if pos != -1 else 0
+    else:
+        fio_end_pos = 0
+
+    if not fio:
+        if user.first_name:
+            fio = user.first_name
+        elif user.username:
+            fio = f"@{user.username}"
+        else:
+            fio = f"id {user.id}"
+
+    return fio, fio_end_pos
 
 
 # ================== КОМАНДЫ ДЛЯ ВСЕХ ==================
@@ -774,7 +878,7 @@ def now_cmd(message):
     if subj_norm == "захист україни":
         markup = InlineKeyboardMarkup(row_width=1)
         markup.add(InlineKeyboardButton(text="Захист України — Сапко", url=DEFENCE_SAPKO_URL))
-        markup.add(InlineKeyboardButton(text="Захист України — Киящук", url=DEFENCE_KYYASHCHUK_URL))
+        markup.add(InlineKeyboardButton(text="Захист України — Киящук", url=DEFENCE_KYYASHЧУК_URL))
     else:
         url = get_meet_link_for_subject(subj)
         if url:
@@ -844,10 +948,10 @@ def next_cmd(message):
     if subj_norm == "захист україни":
         markup = InlineKeyboardMarkup(row_width=1)
         markup.add(InlineKeyboardButton(text="Захист України — Сапко", url=DEFENCE_SAPKO_URL))
-        markup.add(InlineKeyboardButton(text="Захист України — Киящук", url=DEFENCE_KYYASHCHUK_URL))
+        markup.add(InlineKeyboardButton(text="Захист України — Киящук", url=DEFENCE_KYYASHЧУК_URL))
         text += (
             f"\n🔗 Meet (Сапко): {DEFENCE_SAPKO_URL}"
-            f"\n🔗 Meet (Киящук): {DEFENCE_KYYASHCHUK_URL}"
+            f"\n🔗 Meet (Киящук): {DEFENCE_KYYASHЧУК_URL}"
         )
     else:
         url = get_meet_link_for_subject(subj)
@@ -859,32 +963,28 @@ def next_cmd(message):
     bot.reply_to(message, text, reply_markup=markup)
 
 
-# ================== КОМАНДА /wont (відсутність студента, УМНАЯ) ==================
+# ================== КОМАНДА /wont (відсутність студента) ==================
 
 @bot.message_handler(commands=["wont"])
 def wont_cmd(message):
     """
-    Формат теперь свободный, примеры:
+    Формат для студентів (можна довільно, головне щоб було ПІБ, день і пари):
 
-    /wont Побережна, мене не буде в середу на 1 парі і на 4 парі
-    /wont Давіташвілі Ілля завтра не буду на 2 і 3 парі бо хворію
-    /wont Роман в п'ятницю мене не буде на першій парі
-
-    Бот:
-    - витягує ім'я з початку тексту
-    - шукає день (понеділок/пн/середу/завтра/сьогодні/послезавтра...)
-    - шукає номери пар (1, 2, 3, 4...) у будь-якому форматі
-    - записує окремий запис для кожної пари в absences.json
-    - надсилає ОДНЕ повідомлення адмінам з усіма парами
+    /wont Давиташвили Илля мене не буде в середу на 1й парі і на 4 парі
+    /wont Давиташвили Илля завтра не буду на 2 і 3 парі бо/потому что хворію
     """
     remember_user(message)
 
     if message.text.strip() == "/wont":
         bot.reply_to(
             message,
+            "Як писати /wont:\n"
+            "• Спочатку ПІБ (наприклад: Давиташвили Илля)\n"
+            "• Потім день: понеділок / понедельник / середу / среду / завтра / сьогодні / сегодня...\n"
+            "• Потім пари: 1, 2, 3, 4, 5 (можна '1й', '2 і 3 пару' тощо)\n\n"
             "Приклади:\n"
-            "/wont Побережна мене не буде в середу на 1й парі і на 4 парі\n"
-            "/wont Давіташвілі Ілля завтра не буду на 2 і 3 парі бо хворію"
+            "/wont Давиташвили Илля мене не буде в середу на 1й і 4 парі\n"
+            "/wont Давиташвили Илля завтра не буду на 2 і 3 парі бо/потому что хворію"
         )
         return
 
@@ -894,7 +994,7 @@ def wont_cmd(message):
         bot.reply_to(
             message,
             "Приклад:\n"
-            "/wont Побережна мене не буде в середу на 1й парі і на 4 парі"
+            "/wont Давиташвили Илля мене не буде в середу на 1й і 4 парі"
         )
         return
 
@@ -903,103 +1003,92 @@ def wont_cmd(message):
         bot.reply_to(
             message,
             "Приклад:\n"
-            "/wont Побережна мене не буде в середу на 1й парі і на 4 парі"
+            "/wont Давиташвили Илля мене не буде в середу на 1й і 4 парі"
         )
         return
 
     rest_lower = rest.lower()
+    u = message.from_user
 
-    # 1) День (понеділок / середу / завтра / сьогодні / послезавтра...)
+    # 1) День
     day_key = detect_day_key_from_free_text(rest)
     if not day_key:
         bot.reply_to(
             message,
-            "Не можу зрозуміти, на який день ти не прийдеш 😅\n"
-            "Напиши день хоч якось: понеділок / пн / середу / завтра / сьогодні."
+            "Я не зрозумів, на який день ти не прийдеш 🤔\n"
+            "Додай день у текст: понеділок/понедельник, в середу/в пятницу, завтра/сьогодні/сегодня."
         )
         return
     day_name_ua = DAYS_RU.get(day_key, day_key)
 
-    # 2) ПАРИ (1, 2, 3, 4...) – може бути кілька
+    # 2) ПАРИ
     pairs = extract_pairs_from_text(rest)
     if not pairs:
         bot.reply_to(
             message,
-            "Не бачу номерів пар 🤔\n"
-            "Напиши, наприклад: на 1 парі, на 2 і 4, 3 пара і т.п."
+            "Я не бачу номерів пар 😅\n"
+            "Напиши, на які саме: наприклад 'на 1й парі і на 4 парі' або '2 і 3 пару'."
         )
         return
 
-    # 3) ІМ'Я – все, що до першого знайденого дня/пари
-    earliest = len(rest)
+    # 3) ПІБ
+    fio, fio_end_pos = extract_fio_from_text(rest, rest_lower, u)
 
-    # где в тексте встретилось слово-день
-    cleaned = re.sub(r"[.,;:!?]", " ", rest_lower)
-    tokens = cleaned.split()
-    for token in tokens:
-        if token in DAY_ALIASES:
-            idx = rest_lower.find(token)
-            if idx != -1:
-                earliest = min(earliest, idx)
-                break
+    if len(fio.split()) < 2:
+        bot.reply_to(
+            message,
+            "Бажано писати хоча б прізвище та ім'я, наприклад:\n"
+            "/wont Давиташвили Илля мене не буде в середу на 1й парі..."
+        )
+        return
 
-    # относительные слова как маркер (сьогодні, завтра...)
-    for kw in ["сьогодні", "сегодня", "today", "завтра", "tomorrow", "післязавтра", "послезавтра"]:
-        idx = rest_lower.find(kw)
-        if idx != -1:
-            earliest = min(earliest, idx)
+    if len(fio.split()) > 4:
+        bot.reply_to(
+            message,
+            "Щось я заплутався у твоєму /wont 😅\n"
+            "Напиши спочатку тільки прізвище та ім'я (максимум по-батькові),\n"
+            "а потім текст типу: 'мене не буде в середу на 1й і 4 парі, бо ...'."
+        )
+        return
 
-    # первая цифра-пара
-    m = re.search(r"(\d{1,2})\s*(?:-?й|-?я|пар[аеиі]?)?", rest_lower)
-    if m:
-        earliest = min(earliest, m.start())
+    # 4) Причина
+    tail = rest[fio_end_pos:].lstrip(" ,.-—")
+    tail_lower = tail.lower()
 
-    name_raw = rest[:earliest].strip(" ,.-")
-    u = message.from_user
-    if not name_raw:
-        # якщо не вдалося витягнути – беремо ім'я з Телеги
-        if u.first_name:
-            name_raw = u.first_name
-        elif u.username:
-            name_raw = f"@{u.username}"
-        else:
-            name_raw = f"id {u.id}"
-    name = name_raw
-
-    # 4) ПРИЧИНА – все, що після слів типу "бо", "потому", "из-за", "через"
-    reason = "без причини"
-    reason_markers = ["бо ", "бо,", "потому", "потому що", "из-за", "із-за", "через", "because"]
+    reason_markers = [
+        "бо ", "бо,", "бо що",
+        "потому что", "потому, что", "потому ", "поэтому ",
+        "из-за", "из за", "із-за", "через ", "because",
+    ]
     reason_idx = -1
     for kw in reason_markers:
-        idx = rest_lower.find(kw)
+        idx = tail_lower.find(kw)
         if idx != -1:
             reason_idx = idx
             break
 
     if reason_idx != -1:
-        reason = rest[reason_idx:].strip()
+        reason = tail[reason_idx:].strip()
     else:
-        # якщо маркерів нема – беремо хвіст після імені/дня/пари, якщо там щось є
-        tail = rest[earliest:].strip(" ,.-")
-        if tail:
-            reason = tail
+        reason = tail.strip()
+
+    if not reason:
+        reason = "—"
 
     # 5) Хто відправив
-    sender = []
+    sender_parts = []
     if u.username:
-        sender.append(f"@{u.username}")
+        sender_parts.append(f"@{u.username}")
     if u.first_name:
-        sender.append(u.first_name)
-    sender_str = " ".join(sender) or f"id {u.id}"
+        sender_parts.append(u.first_name)
+    sender_str = " ".join(sender_parts) or f"id {u.id}"
 
     now_str = (datetime.utcnow() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M")
-
     pairs_str = ", ".join(str(p) for p in pairs)
 
-    # текст, который прилетит ТОЛЬКО тобі (MAIN_ADMIN_ID)
     admin_text = (
         "📢 Повідомлення про відсутність студента\n\n"
-        f"👤 Студент: {name}\n"
+        f"👤 Студент (ПІБ): {fio}\n"
         f"📅 День: {day_name_ua}\n"
         f"🔢 Пари: {pairs_str}\n"
         f"📝 Причина: {reason}\n\n"
@@ -1007,9 +1096,8 @@ def wont_cmd(message):
         f"Час (UTC+2): {now_str}"
     )
 
-    # 6) Пишем в лог відсутностей ОКРЕМИЙ запис для кожної пари
     for pair_num in pairs:
-        add_absence_record(name, pair_num, day_key, reason, u)
+        add_absence_record(fio, pair_num, day_key, reason, u)
 
     try:
         bot.send_message(MAIN_ADMIN_ID, admin_text)
@@ -1090,7 +1178,6 @@ def setpair_cmd(message):
         subject = subj_room_raw.strip()
         room = ""
 
-    # обновляем расписание
     schedule.setdefault(day_key, {}).setdefault(week_type, {})
     schedule[day_key][week_type][str(pair_num)] = {
         "subject": subject,
@@ -1098,12 +1185,10 @@ def setpair_cmd(message):
     }
     save_schedule(schedule)
 
-    # пишем в changelog
     add_changelog_record(day_key, pair_num, week_type, subject, room, message.from_user)
 
     time_txt = get_pair_time(day_key, pair_num) or "час ?"
 
-    # ответ админу
     bot.reply_to(
         message,
         f"Ок, оновив:\n"
@@ -1111,7 +1196,6 @@ def setpair_cmd(message):
         f"{time_txt} — {subject} {f'({room})' if room else ''}"
     )
 
-    # ====== РОЗСИЛКА ВСІМ, ХТО ПИСАВ БОТУ ======
     changer = message.from_user.first_name or ""
     subj_norm = subject.strip().lower()
     meet_url = get_meet_link_for_subject(subject)
@@ -1122,11 +1206,10 @@ def setpair_cmd(message):
         f"{time_txt} — {subject}{f' ({room})' if room else ''}"
     )
 
-    # если Захист України — сразу два линка
     if subj_norm == "захист україни":
         change_text += (
             f"\n🔗 Meet (Сапко): {DEFENCE_SAPKO_URL}"
-            f"\n🔗 Meet (Киящук): {DEFENCE_KYYASHCHUK_URL}"
+            f"\n🔗 Meet (Киящук): {DEFENCE_KYYASHЧУК_URL}"
         )
     elif meet_url:
         change_text += f"\n🔗 Meet: {meet_url}"
@@ -1152,7 +1235,6 @@ def who_cmd(message):
 
     lines = []
 
-    # сортируем по last_seen (новые сверху)
     def sort_key(item):
         return item[1].get("last_seen", "")
 
@@ -1235,7 +1317,7 @@ def absent_cmd(message):
     today_name = DAYS_RU[today_key]
 
     now = datetime.utcnow() + timedelta(hours=2)
-    threshold = now - timedelta(days=14)  # щоб старий треш не тягнути
+    threshold = now - timedelta(days=14)
 
     todays = []
     for rec in absences:
@@ -1251,7 +1333,6 @@ def absent_cmd(message):
         return
 
     lines = [f"🚷 Відсутні сьогодні ({today_name}):\n"]
-    # сгруппируем по Імені + парі
     for rec in sorted(todays, key=lambda r: (r.get("pair_num", 0), r.get("name", ""))):
         name = rec.get("name", "???")
         pair_num = rec.get("pair_num", "?")
@@ -1279,7 +1360,7 @@ def changelog_cmd(message):
     except Exception:
         limit = 10
 
-    items = changelog[-limit:]  # последние N
+    items = changelog[-limit:]
     lines = ["📜 Останні зміни розкладу:\n"]
     for rec in reversed(items):
         ts = rec.get("timestamp", "")
@@ -1322,11 +1403,9 @@ def whois_cmd(message):
 
     found_ids = set()
 
-    # по ID
     if query.isdigit() and query in users:
         found_ids.add(query)
 
-    # по username
     for uid, info in users.items():
         uname = (info.get("username") or "").lower()
         if uname and uname == query.lower():
@@ -1344,7 +1423,6 @@ def whois_cmd(message):
         last_seen = info.get("last_seen", "")
         user_id_int = int(uid)
 
-        # считаем /wont по sender_id
         user_abs = [r for r in absences if r.get("sender_id") == user_id_int]
         total_wont = len(user_abs)
 
@@ -1377,7 +1455,7 @@ def whois_cmd(message):
                 f"Останній /wont: {dt_str}, {day_name}, пара {pair_num}, причина: {reason}"
             )
 
-        lines.append("")  # пустая строка между юзерами
+        lines.append("")
 
     bot.reply_to(message, "\n".join(lines))
 
@@ -1386,7 +1464,6 @@ def whois_cmd(message):
 
 @bot.message_handler(func=lambda m: True, content_types=['text'])
 def tracking_handler(message):
-    # просто запоминаем юзера, НИЧЕГО не отвечаем
     remember_user(message)
 
 
@@ -1395,7 +1472,6 @@ def tracking_handler(message):
 notified_pairs = set()  # типа "2025-12-04_1"
 
 def send_pair_notification(pair_key, pair_num, pair, day_key):
-    # якщо по цій парі стоїть "немає пари" — нічого не шлем
     if is_empty_pair(pair):
         return
 
@@ -1413,14 +1489,13 @@ def send_pair_notification(pair_key, pair_num, pair, day_key):
     if subj_norm == "захист україни":
         markup = InlineKeyboardMarkup(row_width=1)
         markup.add(InlineKeyboardButton(text="Захист України — Сапко", url=DEFENCE_SAPKO_URL))
-        markup.add(InlineKeyboardButton(text="Захист України — Киящук", url=DEFENCE_KYYASHCHUK_URL))
+        markup.add(InlineKeyboardButton(text="Захист України — Киящук", url=DEFENCE_KYYASHЧУК_URL))
     else:
         url = get_meet_link_for_subject(subj)
         if url:
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton(text="Увійти в Google Meet", url=url))
 
-    # рассылаем всем, кто хоть раз писал боту
     for uid_str in list(users.keys()):
         uid = int(uid_str)
         try:
@@ -1433,13 +1508,11 @@ def notifications_loop():
     global notified_pairs
     while True:
         try:
-            # локальное время: UTC+2 (Україна)
             now = datetime.utcnow() + timedelta(hours=2)
             d = now.date()
             day_key, used_week_type, day_schedule = get_day_struct(d)
             date_key = d.isoformat()
 
-            # очищаем старые уведомления в районе полуночи
             if now.hour == 0 and now.minute < 5:
                 notified_pairs = set()
 
@@ -1449,7 +1522,6 @@ def notifications_loop():
                 except ValueError:
                     continue
 
-                # якщо тут "немає пари" — пропускаємо і не нагадуємо
                 if is_empty_pair(pair):
                     continue
 
@@ -1457,7 +1529,7 @@ def notifications_loop():
                 if not time_txt:
                     continue
 
-                start_str = time_txt.split("–")[0]  # "08:30"
+                start_str = time_txt.split("–")[0]
                 try:
                     hh, mm = map(int, start_str.split(":"))
                 except Exception:
@@ -1466,7 +1538,6 @@ def notifications_loop():
                 pair_dt = datetime(d.year, d.month, d.day, hh, mm)
                 delta_sec = (pair_dt - now).total_seconds()
 
-                # окно от 4 до 6 минут до пари
                 if 240 <= delta_sec <= 360:
                     key = f"{date_key}_{pair_str}"
                     if key not in notified_pairs:
