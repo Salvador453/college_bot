@@ -4,7 +4,7 @@ from datetime import date, timedelta, datetime
 from pathlib import Path
 import json
 import time
-import re
+import re  # для парсинга пар
 
 # ====== мини-вебсервер для Render ======
 from flask import Flask
@@ -19,6 +19,7 @@ def home():
 
 def run_flask():
     port = int(os.environ.get("PORT", 5000))
+    # host 0.0.0.0 обязателен, иначе Render не увидит порт
     app.run(host="0.0.0.0", port=port)
 
 threading.Thread(target=run_flask, daemon=True).start()
@@ -28,104 +29,35 @@ threading.Thread(target=run_flask, daemon=True).start()
 # ================== НАСТРОЙКИ ==================
 
 TOKEN = "7762300503:AAF17NRUSz6aeUG6Ek8rXMMtuYT3GQ2lPEM"
+
 bot = telebot.TeleBot(TOKEN)
 
+# на всякий случай выпиливаем вебхук, чтобы не ловить 409
 try:
     bot.remove_webhook()
 except Exception as e:
     print("Ошибка при удалении webhook:", e)
 
+# твой Telegram ID (сюда прилетают /wont)
 MAIN_ADMIN_ID = 1509389908
 
+# список админов, которые могут юзать /setpair, /who, /stats, /absent, /changelog, /whois, /holiday, /school_start
 ADMIN_IDS = {
     1509389908,
     1573294591,
     5180067949,
+    # если захочешь, сюда можно добавить ещё айдишки
 }
 
+# Неделя, которая начинается в ПН 01.12.2025 – це ЗНАМЕННИК
 REFERENCE_MONDAY = date(2025, 12, 1)
 REFERENCE_WEEK_TYPE = "знаменник"
 
 SCHEDULE_FILE = "schedule.json"
-USERS_FILE = "users.json"
-ABSENCES_FILE = "absences.json"
-CHANGELOG_FILE = "changelog.json"
-HOLIDAYS_FILE = "holidays.json"
-
-
-# ================== КАНИКУЛЫ ==================
-
-def load_holidays():
-    path = Path(HOLIDAYS_FILE)
-    if not path.exists():
-        return {"active": False, "text": ""}
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
-
-def save_holidays():
-    with open(HOLIDAYS_FILE, "w", encoding="utf-8") as f:
-        json.dump(holidays, f, ensure_ascii=False, indent=2)
-
-holidays = load_holidays()
-
-def holidays_active():
-    return holidays.get("active", False)
-
-
-@bot.message_handler(commands=["holidays"])
-def holidays_cmd(message):
-    remember_user(message)
-    if message.from_user.id not in ADMIN_IDS:
-        return
-
-    text = message.text.replace("/holidays", "").strip()
-    if not text:
-        bot.reply_to(message, "Формат: /holidays <текст>")
-        return
-
-    holidays["active"] = True
-    holidays["text"] = text
-    save_holidays()
-
-    msg = (
-        "🏖️ КАНІКУЛИ!\n\n"
-        f"{text}\n\n"
-        "🔕 Усі нагадування про пари вимкнені."
-    )
-
-    for uid in users:
-        try:
-            bot.send_message(int(uid), msg)
-        except:
-            pass
-
-    bot.reply_to(message, "✅ Канікули увімкнені")
-
-
-@bot.message_handler(commands=["study"])
-def study_cmd(message):
-    remember_user(message)
-    if message.from_user.id not in ADMIN_IDS:
-        return
-
-    text = message.text.replace("/study", "").strip()
-    if not text:
-        text = "Навчання відновлюється 📚"
-
-    holidays["active"] = False
-    holidays["text"] = ""
-    save_holidays()
-
-    msg = f"📚 НАВЧАННЯ ВІДНОВЛЕНО\n\n{text}"
-
-    for uid in users:
-        try:
-            bot.send_message(int(uid), msg)
-        except:
-            pass
-
-    bot.reply_to(message, "✅ Навчання відновлено")
-
+USERS_FILE = "users.json"         # хто писав боту
+ABSENCES_FILE = "absences.json"   # сюда пишем /wont
+CHANGELOG_FILE = "changelog.json" # сюда пишем /setpair
+HOLIDAYS_FILE = "holidays.json"   # статус каникул
 
 # Расклад дзвінків
 BELL_SCHEDULE = {
@@ -515,6 +447,28 @@ def add_changelog_record(day_key, pair_num, week_type, subject, room, admin_user
     save_changelog()
 
 
+# ================== КАНИКУЛЫ (holiday system) ==================
+
+def load_holidays():
+    """Загружаем статус каникул"""
+    path = Path(HOLIDAYS_FILE)
+    if not path.exists():
+        # По умолчанию каникул нет
+        return {"is_holiday": False, "holiday_message": "", "school_start_message": ""}
+    with path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_holidays():
+    """Сохраняем статус каникул"""
+    path = Path(HOLIDAYS_FILE)
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(holidays, f, ensure_ascii=False, indent=2)
+
+
+holidays = load_holidays()
+
+
 # ================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==================
 
 def get_week_type(target_date=None):
@@ -728,7 +682,7 @@ def extract_pairs_from_text(text: str):
             continue
 
     word_to_pair = {
-        "перша": 1, "першу": 1, "первая": 1, "первую": 1, "первой": 1,
+        "перша": 1, "першу": 1, "первая": 1, "первую": 1, "першей": 1,
         "друга": 2, "другу": 2, "вторая": 2, "вторую": 2, "второй": 2,
         "третя": 3, "третю": 3, "третья": 3, "третью": 3,
         "четверта": 4, "четверту": 4, "четвертая": 4, "четвертую": 4,
@@ -841,6 +795,12 @@ def week_cmd(message):
 @bot.message_handler(commands=["today"])
 def today_cmd(message):
     remember_user(message)
+    
+    # Проверяем каникулы
+    if holidays["is_holiday"]:
+        bot.reply_to(message, "🎉 Зараз канікули! Відпочивай та насолоджуйся вільним часом! 🏖️")
+        return
+    
     d = date.today()
     text = format_day_schedule(d)
     markup = build_day_markup(d)
@@ -850,6 +810,12 @@ def today_cmd(message):
 @bot.message_handler(commands=["tomorrow"])
 def tomorrow_cmd(message):
     remember_user(message)
+    
+    # Проверяем каникулы
+    if holidays["is_holiday"]:
+        bot.reply_to(message, "🎉 Зараз канікули! Відпочивай та насолоджуйся вільним часом! 🏖️")
+        return
+    
     d = date.today() + timedelta(days=1)
     text = format_day_schedule(d)
     markup = build_day_markup(d)
@@ -910,6 +876,12 @@ def bells_cmd(message):
 @bot.message_handler(commands=["now"])
 def now_cmd(message):
     remember_user(message)
+    
+    # Проверяем каникулы
+    if holidays["is_holiday"]:
+        bot.reply_to(message, "🎉 Зараз канікули! Відпочивай та насолоджуйся вільним часом! 🏖️")
+        return
+    
     now = datetime.utcnow() + timedelta(hours=2)
     d = now.date()
     day_key, used_week_type, day_schedule = get_day_struct(d)
@@ -983,6 +955,12 @@ def now_cmd(message):
 @bot.message_handler(commands=["next"])
 def next_cmd(message):
     remember_user(message)
+    
+    # Проверяем каникулы
+    if holidays["is_holiday"]:
+        bot.reply_to(message, "🎉 Зараз канікули! Відпочивай та насолоджуйся вільним часом! 🏖️")
+        return
+    
     now = datetime.utcnow() + timedelta(hours=2)
     d = now.date()
     day_key, used_week_type, day_schedule = get_day_struct(d)
@@ -1188,6 +1166,164 @@ def wont_cmd(message):
     )
 
 
+# ================== КОМАНДЫ КАНИКУЛЫ ==================
+
+@bot.message_handler(commands=["holiday"])
+def holiday_cmd(message):
+    """Объявление каникул - отключает автонапоминания"""
+    remember_user(message)
+    if not is_admin(message):
+        return
+    
+    # Получаем текст после команды
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        bot.reply_to(message, "Напиши текст объявления каникул.\nПример: /holiday С 25 декабря по 10 января - зимние каникулы! 🎄❄️")
+        return
+    
+    announcement = parts[1].strip()
+    
+    # Устанавливаем статус каникул
+    holidays["is_holiday"] = True
+    holidays["holiday_message"] = announcement
+    holidays["holiday_date"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    holidays["announcer_id"] = message.from_user.id
+    holidays["announcer_name"] = message.from_user.first_name or message.from_user.username or "Админ"
+    
+    save_holidays()
+    
+    # Очищаем уведомления о парах (чтобы не приходили во время каникул)
+    global notified_pairs
+    notified_pairs.clear()
+    
+    # Отправляем сообщение всем пользователям
+    broadcast_text = (
+        "🎉🎉🎉 ВАЖНОЕ ОБЪЯВЛЕНИЕ 🎉🎉🎉\n\n"
+        f"📢 {announcement}\n\n"
+        "✅ Автонапоминания о парах отключены.\n"
+        "⏸️ Команды /now, /next, /today, /tomorrow будут показывать, что сейчас каникулы.\n\n"
+        "Хорошо отдохнуть! 🏖️✨"
+    )
+    
+    # Отправка админу подтверждение
+    bot.reply_to(message, f"✅ Каникулы объявлены! Сообщение отправлено {len(users)} пользователям.")
+    
+    # Рассылка всем пользователям
+    successful = 0
+    failed = 0
+    for uid_str in list(users.keys()):
+        try:
+            uid = int(uid_str)
+            bot.send_message(uid, broadcast_text)
+            successful += 1
+        except Exception as e:
+            print(f"Не смог отправить сообщение о каникулах пользователю {uid_str}: {e}")
+            failed += 1
+    
+    # Отчет админу
+    bot.send_message(
+        message.from_user.id,
+        f"📊 Статистика рассылки:\n"
+        f"✅ Успешно: {successful}\n"
+        f"❌ Не удалось: {failed}\n"
+        f"Всего пользователей: {len(users)}"
+    )
+
+
+@bot.message_handler(commands=["school_start"])
+def school_start_cmd(message):
+    """Объявление начала учебы - включает автонапоминания"""
+    remember_user(message)
+    if not is_admin(message):
+        return
+    
+    # Получаем текст после команды
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        bot.reply_to(message, "Напиши текст объявления начала учебы.\nПример: /school_start С 11 января начинаем учебу! 📚✨")
+        return
+    
+    announcement = parts[1].strip()
+    
+    # Устанавливаем статус каникул
+    holidays["is_holiday"] = False
+    holidays["school_start_message"] = announcement
+    holidays["school_start_date"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    holidays["announcer_id"] = message.from_user.id
+    holidays["announcer_name"] = message.from_user.first_name or message.from_user.username or "Админ"
+    
+    save_holidays()
+    
+    # Очищаем уведомления о парах (чтобы начали приходить снова)
+    global notified_pairs
+    notified_pairs.clear()
+    
+    # Отправляем сообщение всем пользователям
+    broadcast_text = (
+        "📚📚📚 ВАЖНОЕ ОБЪЯВЛЕНИЕ 📚📚📚\n\n"
+        f"📢 {announcement}\n\n"
+        "✅ Автонапоминания о парах включены.\n"
+        "🚀 Готовьтесь к учебе!\n\n"
+        "Удачи в новом учебном периоде! 💪✨"
+    )
+    
+    # Отправка админу подтверждение
+    bot.reply_to(message, f"✅ Начало учебы объявлено! Сообщение отправлено {len(users)} пользователям.")
+    
+    # Рассылка всем пользователям
+    successful = 0
+    failed = 0
+    for uid_str in list(users.keys()):
+        try:
+            uid = int(uid_str)
+            bot.send_message(uid, broadcast_text)
+            successful += 1
+        except Exception as e:
+            print(f"Не смог отправить сообщение о начале учебы пользователю {uid_str}: {e}")
+            failed += 1
+    
+    # Отчет админу
+    bot.send_message(
+        message.from_user.id,
+        f"📊 Статистика рассылки:\n"
+        f"✅ Успешно: {successful}\n"
+        f"❌ Не удалось: {failed}\n"
+        f"Всего пользователей: {len(users)}"
+    )
+
+
+@bot.message_handler(commands=["holiday_status"])
+def holiday_status_cmd(message):
+    """Показывает текущий статус каникул"""
+    remember_user(message)
+    if not is_admin(message):
+        return
+    
+    if holidays["is_holiday"]:
+        status = "🎉 КАНИКУЛЫ"
+        message_text = holidays.get("holiday_message", "Каникулы объявлены")
+        announce_date = holidays.get("holiday_date", "Неизвестно")
+        announcer = holidays.get("announcer_name", "Неизвестно")
+    else:
+        status = "📚 УЧЕБА"
+        message_text = holidays.get("school_start_message", "Учеба идет")
+        announce_date = holidays.get("school_start_date", "Неизвестно")
+        announcer = holidays.get("announcer_name", "Неизвестно")
+    
+    response = (
+        f"📊 Статус каникул:\n\n"
+        f"🔸 Статус: {status}\n"
+        f"🔸 Сообщение: {message_text}\n"
+        f"🔸 Дата объявления: {announce_date}\n"
+        f"🔸 Объявил: {announcer}\n\n"
+        f"Команды:\n"
+        f"/holiday <текст> - объявить каникулы\n"
+        f"/school_start <текст> - объявить начало учебы"
+    )
+    
+    bot.reply_to(message, response)
+
+
 # ================== АДМИН-КОМАНДЫ ==================
 
 @bot.message_handler(commands=["adminhelp"])
@@ -1202,12 +1338,17 @@ def admin_help(message):
         "/stats <week|month> – статистика /wont\n"
         "/absent – хто сьогодні відмічений як відсутній\n"
         "/changelog – останні зміни розкладу\n"
-        "/whois <@username|id> – інфа по користувачу\n\n"
+        "/whois <@username|id> – інфа по користувачу\n"
+        "/holiday <текст> – оголосити канікули (відключає автонагадування)\n"
+        "/school_start <текст> – оголосити початок навчання\n"
+        "/holiday_status – статус канікул\n\n"
         "Приклади:\n"
         "/setpair понеділок 2 чисельник Інформатика ; 202\n"
         "/setpair середа 3 знаменник Математика ; 121\n"
         "/stats week\n"
         "/whois @nickname\n"
+        "/holiday З 25 грудня по 10 січня - зимові канікули! 🎄❄️\n"
+        "/school_start З 11 січня починаємо навчання! 📚✨"
     )
     bot.reply_to(message, text)
 
@@ -1217,6 +1358,10 @@ def setpair_cmd(message):
     remember_user(message)
     if not is_admin(message):
         return
+
+    # Проверяем каникулы (предупреждаем, но разрешаем)
+    if holidays["is_holiday"]:
+        bot.send_message(message.chat.id, "⚠️ Внимание: сейчас каникулы! Вы уверены, что хотите изменить расписание?")
 
     try:
         _, rest = message.text.split(" ", 1)
@@ -1294,12 +1439,16 @@ def setpair_cmd(message):
 
     change_text += f"\n\nЗмінено користувачем: {changer}"
 
-    for uid_str in list(users.keys()):
-        try:
-            uid = int(uid_str)
-            bot.send_message(uid, change_text)
-        except Exception as e:
-            print(f"Не зміг відправити повідомлення про зміну {uid}: {e}")
+    # Не рассылаем изменения во время каникул
+    if not holidays["is_holiday"]:
+        for uid_str in list(users.keys()):
+            try:
+                uid = int(uid_str)
+                bot.send_message(uid, change_text)
+            except Exception as e:
+                print(f"Не зміг відправити повідомлення про зміну {uid}: {e}")
+    else:
+        bot.send_message(message.chat.id, "ℹ️ Изменения сохранены, но рассылка не выполнялась (сейчас каникулы).")
 
 
 @bot.message_handler(commands=["who"])
@@ -1583,6 +1732,10 @@ def send_pair_notification(pair_key, pair_num, pair, day_key):
     if is_empty_pair(pair):
         return
 
+    # Проверяем каникулы - если каникулы, не отправляем уведомления
+    if holidays["is_holiday"]:
+        return
+
     text = "Через ~5 хвилин пара:\n"
     time_txt = get_pair_time(day_key, pair_num) or "час ?"
     subj = pair.get("subject", "—")
@@ -1616,6 +1769,11 @@ def notifications_loop():
     global notified_pairs
     while True:
         try:
+            # Проверяем каникулы - если каникулы, пропускаем отправку уведомлений
+            if holidays["is_holiday"]:
+                time.sleep(60)
+                continue
+                
             now = datetime.utcnow() + timedelta(hours=2)
             d = now.date()
             day_key, used_week_type, day_schedule = get_day_struct(d)
@@ -1665,4 +1823,12 @@ threading.Thread(target=notifications_loop, daemon=True).start()
 # ================== СТАРТ БОТА ==================
 
 print("Бот запущен...")
+# Показываем статус каникул при запуске
+if holidays["is_holiday"]:
+    print("⚠️ Сейчас КАНИКУЛЫ! Автоуведомления отключены.")
+    if holidays.get("holiday_message"):
+        print(f"Сообщение о каникулах: {holidays['holiday_message']}")
+else:
+    print("📚 Учеба в процессе. Автоуведомления включены.")
+
 bot.infinity_polling()
