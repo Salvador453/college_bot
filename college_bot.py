@@ -35,7 +35,6 @@ except Exception as e:
 MAIN_ADMIN_ID = 1509389908
 ADMIN_IDS = {1509389908, 1573294591, 5180067949}
 
-# Неделя, которая начинается в ПН 12.01.2026 – это ЧИСЕЛЬНИК
 REFERENCE_MONDAY = date(2026, 1, 12)
 REFERENCE_WEEK_TYPE = "чисельник"
 
@@ -46,21 +45,20 @@ CHANGELOG_FILE = "changelog.json"
 HOLIDAYS_FILE = "holidays.json"
 MEET_LINKS_FILE = "meet_links.json"
 
-# ------------ звонки ------------
 BELL_SCHEDULE = {
     "monday": {
-        1: "08:30–09:50",
-        2: "10:00–11:20",
-        3: "11:50–13:10",
-        4: "14:00–15:20",
-        5: "15:30–16:50",
+        1: "08:30-09:50",
+        2: "10:00-11:20",
+        3: "11:50-13:10",
+        4: "14:00-15:20",
+        5: "15:30-16:50",
     },
-    "other": {   # вівторок – п’ятниця
-        1: "08:30–09:50",
-        2: "10:00–11:20",
-        3: "11:50–13:10",
-        4: "13:20–14:40",
-        5: "14:50–16:10",
+    "other": {
+        1: "08:30-09:50",
+        2: "10:00-11:20",
+        3: "11:50-13:10",
+        4: "13:20-14:40",
+        5: "14:50-16:10",
     },
 }
 
@@ -86,7 +84,7 @@ DAYS_RU = {
 
 NO_LESSON_SUBJECTS = {
     "немає пари", "нема пари", "нет пары", "немає уроку", "нема уроку", 
-    "уроку немає", "-", "—", "", " ",
+    "уроку немає", "-", "", " ",
 }
 
 # ================== РАСПИСАНИЯ ==================
@@ -318,26 +316,26 @@ def load_meet_links():
     path = Path(MEET_LINKS_FILE)
     if not path.exists():
         return {
-            "Фізика і астрономія": "https://meet.google.com/yqs-gkhh-xqm?authuser=0&hs=179 ",
-            "Всесвітня історія": "https://meet.google.com/ejg-gvrv-iox?authuser=0&hs=179 ",
-            "Історія України": "https://meet.google.com/mpc-znwb-gkq?authuser=0&hs=179 ",
-            "Іноземна мова": "https://meet.google.com/xfq-qeab-vis?authuser=0&hs=179 ",
-            "Інформатика": "https://meet.google.com/qhx-qkcv-sds?authuser=0&hs=179 ",
-            "Математика": "https://meet.google.com/nnn-qzzy-yjf?authuser=0&hs=179 ",
-            "Фізична культура": "https://meet.google.com/swm-bpmx-dfb?authuser=0&hs=179 ",
-            "Географія": "https://meet.google.com/euh-zuqa-igg?authuser=0&hs=179 ",
-            "Організаційна година": "https://meet.google.com/hai-zbrq-pnb?authuser=0&hs=179 ",
-            "Зарубіжна література": "https://meet.google.com/hug-ddec-mop?authuser=0&hs=179 ",
-            "Українська література": "https://meet.google.com/ogm-ssbj-jzd?authuser=0&hs=179 ",
-            "Громадянська освіта": "https://meet.google.com/mzw-uedt-fzf?authuser=0&hs=179 ",
-            "Технології": "https://meet.google.com/oap-sefr-fgc?authuser=0&hs=179 ",
-            "Українська мова": "https://meet.google.com/wof-fggd-pet?authuser=0&hs=179 ",
-            "Захист України": "https://meet.google.com/mev-azeu-tiw?authuser=0&hs=179 ",
-            "Хімія": "https://meet.google.com/nup-vusc-tgs?authuser=0&hs=179 ",
-            "Біологія і екологія": "https://meet.google.com/dgr-knfu-apt?authuser=0&hs=179 ",
-            "Полезна мова": "https://meet.google.com/xfq-qeab-vis?authuser=0&hs=179 ",
-            "Захист України Сапко": "https://meet.google.com/mev-azeu-tiw?authuser=0&hs=179 ",
-            "Захист України Киящук": "https://meet.google.com/nmf-wxwf-ouv ",
+            "Фізика і астрономія": "https://meet.google.com/yqs-gkhh-xqm?authuser=0&hs=179",
+            "Всесвітня історія": "https://meet.google.com/ejg-gvrv-iox?authuser=0&hs=179",
+            "Історія України": "https://meet.google.com/mpc-znwb-gkq?authuser=0&hs=179",
+            "Іноземна мова": "https://meet.google.com/xfq-qeab-vis?authuser=0&hs=179",
+            "Інформатика": "https://meet.google.com/qhx-qkcv-sds?authuser=0&hs=179",
+            "Математика": "https://meet.google.com/nnn-qzzy-yjf?authuser=0&hs=179",
+            "Фізична культура": "https://meet.google.com/swm-bpmx-dfb?authuser=0&hs=179",
+            "Географія": "https://meet.google.com/euh-zuqa-igg?authuser=0&hs=179",
+            "Організаційна година": "https://meet.google.com/hai-zbrq-pnb?authuser=0&hs=179",
+            "Зарубіжна література": "https://meet.google.com/hug-ddec-mop?authuser=0&hs=179",
+            "Українська література": "https://meet.google.com/ogm-ssbj-jzd?authuser=0&hs=179",
+            "Громадянська освіта": "https://meet.google.com/mzw-uedt-fzf?authuser=0&hs=179",
+            "Технології": "https://meet.google.com/oap-sefr-fgc?authuser=0&hs=179",
+            "Українська мова": "https://meet.google.com/wof-fggd-pet?authuser=0&hs=179",
+            "Захист України": "https://meet.google.com/mev-azeu-tiw?authuser=0&hs=179",
+            "Хімія": "https://meet.google.com/nup-vusc-tgs?authuser=0&hs=179",
+            "Біологія і екологія": "https://meet.google.com/dgr-knfu-apt?authuser=0&hs=179",
+            "Полезна мова": "https://meet.google.com/xfq-qeab-vis?authuser=0&hs=179",
+            "Захист України Сапко": "https://meet.google.com/mev-azeu-tiw?authuser=0&hs=179",
+            "Захист України Киящук": "https://meet.google.com/nmf-wxwf-ouv",
         }
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
@@ -443,7 +441,6 @@ def format_day_schedule(d, user_id=None):
 
     header = f"📚 Група: {group}\n"
     header += f"📅 {DAYS_RU[day_key]}, {d.strftime('%d.%m.%Y')}\n"
-    # убираем скобки если совпадает с эталоном
     if used_week_type == REFERENCE_WEEK_TYPE:
         header += f"📋 Тиждень: {used_week_type.upper()}\n\n"
     else:
@@ -454,7 +451,6 @@ def format_day_schedule(d, user_id=None):
 
     lines = [header]
 
-    # учебные пары
     for pair_str in sorted(day_schedule.keys(), key=lambda x: int(x) if x.isdigit() else 0):
         if pair_str == "org":
             continue
@@ -473,10 +469,9 @@ def format_day_schedule(d, user_id=None):
             line += f" — {teacher}"
         lines.append(line)
 
-    # организационный час
     org = day_schedule.get("org")
     if org:
-        lines.append(f"🔸 13:20–13:50 — {org['subject']} ({org['room']}) — {org['teacher']}")
+        lines.append(f"🔸 13:20-13:50 — {org['subject']} ({org['room']}) — {org['teacher']}")
 
     if len(lines) == 1 + bool(org):
         lines.append("Пар немає ✅")
@@ -500,7 +495,6 @@ def build_day_markup(d, user_id=None):
         subj = pair.get("subject", "—")
         if is_empty_pair(pair):
             continue
-        # обработка Захисту України
         if "захист україни" in subj.strip().lower():
             sapko_url = meet_links.get("Захист України Сапко")
             kiyashchuk_url = meet_links.get("Захист України Киящук")
@@ -548,10 +542,9 @@ def format_full_schedule_for_user(user_id):
                     if teacher:
                         line += f" — {teacher}"
                     lines.append(line)
-                # орг-час в конце дня
                 org = day_schedule.get("org")
                 if org:
-                    lines.append(f"    🔸 13:20–13:50 — {org['subject']} ({org['room']}) — {org['teacher']}")
+                    lines.append(f"    🔸 13:20-13:50 — {org['subject']} ({org['room']}) — {org['teacher']}")
     return "\n".join(lines)
 
 # ================== КОМАНДЫ ДЛЯ ВСЕХ ==================
@@ -737,7 +730,7 @@ def now_cmd(message):
         if not time_txt:
             continue
         try:
-            start_str, end_str = time_txt.split("–")
+            start_str, end_str = time_txt.split("-")
             sh, sm = map(int, start_str.split(":"))
             eh, em = map(int, end_str.split(":"))
         except Exception:
@@ -748,13 +741,12 @@ def now_cmd(message):
             current_pair = (pair_num, pair, time_txt)
             break
     if not current_pair:
-        # проверим орг-час
         org = day_schedule.get("org")
         if org:
             start_dt = datetime(d.year, d.month, d.day, 13, 20)
             end_dt = datetime(d.year, d.month, d.day, 13, 50)
             if start_dt <= now <= end_dt:
-                text = "Зараз йде організаційна година:\n13:20–13:50 — Організаційна година (205) — Крамаренко Л.О."
+                text = "Зараз йде організаційна година:\n13:20-13:50 — Організаційна година (205) — Крамаренко Л.О."
                 bot.reply_to(message, text)
                 return
         bot.reply_to(message, "Зараз пари немає ⏸")
@@ -802,7 +794,7 @@ def next_cmd(message):
         bot.reply_to(message, "Сьогодні пар немає ✅")
         return
     next_pair = None
-    for pair_str, pair in sorted(day_schedule.items(), key=lambda x: int(x[0]) if x[0].isdigit() else 0):
+    for pair_str, pair in sorted(day_schedule.items(), key=lambda x: int(x) if x.isdigit() else 0):
         if pair_str == "org":
             continue
         try:
@@ -815,7 +807,7 @@ def next_cmd(message):
         if not time_txt:
             continue
         try:
-            start_str = time_txt.split("–")[0]
+            start_str = time_txt.split("-")[0]
             sh, sm = map(int, start_str.split(":"))
         except Exception:
             continue
@@ -824,12 +816,11 @@ def next_cmd(message):
             next_pair = (pair_num, pair, time_txt)
             break
     if not next_pair:
-        # проверим орг-час
         org = day_schedule.get("org")
         if org:
             start_dt = datetime(d.year, d.month, d.day, 13, 20)
             if start_dt > now:
-                text = "Наступна подія: організаційна година\n13:20–13:50 — Організаційна година (205) — Крамаренко Л.О."
+                text = "Наступна подія: організаційна година\n13:20-13:50 — Організаційна година (205) — Крамаренко Л.О."
                 bot.reply_to(message, text)
                 return
         bot.reply_to(message, "Сьогодні більше пар немає ✅")
@@ -860,7 +851,7 @@ def next_cmd(message):
             markup.add(InlineKeyboardButton(text="Увійти в Google Meet", url=url))
     bot.reply_to(message, text, reply_markup=markup)
 
-# ================== /wont (без изменений) ==================
+# ---------- /wont (полностью без изменений) ----------
 @bot.message_handler(commands=["wont"])
 def wont_cmd(message):
     remember_user(message)
@@ -1019,7 +1010,7 @@ def wont_cmd(message):
         "Ок, я передав інформацію, що тебе не буде на парі(ях) ✅"
     )
 
-# ================== КОМАНДЫ КАНИКУЛЫ ==================
+# ---------- КАНИКУЛЫ (упрощённо) ----------
 @bot.message_handler(commands=["holiday"])
 def holiday_cmd(message):
     remember_user(message)
@@ -1254,10 +1245,6 @@ def setlink_cmd(message):
 
 @bot.message_handler(commands=["links"])
 def links_cmd(message):
-    remember_user(messageПродолжение (хвост файла) – тот же код, но обрезанный из-за лимита длины.  
-Ниже то, что не поместилось выше (вставляйте в конец файла):
-
-```python
     remember_user(message)
     if not is_admin(message):
         return
@@ -1540,7 +1527,6 @@ def send_pair_notification(pair_key, pair_num, pair, day_key, user_id):
         if url:
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton(text="Увійти в Google Meet", url=url))
-    # отправляем только тем, у кого выбрана группа
     for uid_str, user_info in users.items():
         if user_info.get("group") != get_user_group(user_id):
             continue
@@ -1562,7 +1548,6 @@ def notifications_loop():
             date_key = d.isoformat()
             if now.hour == 0 and now.minute < 5:
                 notified_pairs.clear()
-            # для каждой группы
             for group_name, group_schedule in schedule.items():
                 day_key = get_day_key(d)
                 week_type = get_week_type(d)
@@ -1582,7 +1567,7 @@ def notifications_loop():
                     time_txt = get_pair_time(day_key, pair_num)
                     if not time_txt:
                         continue
-                    start_str = time_txt.split("–")[0]
+                    start_str = time_txt.split("-")[0]
                     try:
                         hh, mm = map(int, start_str.split(":"))
                     except Exception:
