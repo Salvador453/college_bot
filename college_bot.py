@@ -35,8 +35,8 @@ except Exception as e:
 MAIN_ADMIN_ID = 1509389908
 ADMIN_IDS = {1509389908, 1573294591, 5180067949}
 
-# Неделя, которая начинается в ПН 01.12.2025 – це ЗНАМЕННИК
-REFERENCE_MONDAY = date(2025, 12, 1)
+# Неделя, которая начинается в ПН 12.01.2026 – це ЗНАМЕННИК
+REFERENCE_MONDAY = date(2026, 01, 12)
 REFERENCE_WEEK_TYPE = "знаменник"
 
 SCHEDULE_FILE = "schedule.json"
