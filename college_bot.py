@@ -544,6 +544,7 @@ def build_day_markup(d, user_id=None):
     markup = InlineKeyboardMarkup(row_width=1)
     has_buttons = False
 
+    # Добавляем кнопки для обычных пар
     for pair_str in sorted(day_schedule.keys(), key=lambda x: int(x) if x.isdigit() else 0):
         if pair_str == "org":
             continue
@@ -566,6 +567,16 @@ def build_day_markup(d, user_id=None):
         if url:
             markup.add(InlineKeyboardButton(text=f"{pair_num}) {subj}", url=url))
             has_buttons = True
+    
+    # Добавляем кнопку для организационной часов org
+    org = day_schedule.get("org")
+    if org:
+        subj = org.get("subject", "Організаційна година")
+        url = get_meet_link_for_subject(subj, group_name)
+        if url:
+            markup.add(InlineKeyboardButton(text=f"🔸 {subj}", url=url))
+            has_buttons = True
+    
     return markup if has_buttons else None
 
 def format_full_schedule_for_user(user_id):
@@ -804,8 +815,22 @@ def now_cmd(message):
             start_dt = datetime(d.year, d.month, d.day, 13, 20)
             end_dt = datetime(d.year, d.month, d.day, 13, 50)
             if start_dt <= now <= end_dt:
-                text = "Зараз йде організаційна година:\n13:20-13:50 — Організаційна година (205) — Крамаренко Л.О."
-                bot.reply_to(message, text)
+                subj = org.get('subject', 'Організаційна година')
+                room = org.get('room', '')
+                teacher = org.get('teacher', '')
+                text = f"Зараз йде організаційна година:\n13:20-13:50 — {subj}"
+                if room:
+                    text += f" ({room})"
+                if teacher:
+                    text += f" — {teacher}"
+                
+                markup = None
+                url = get_meet_link_for_subject(subj, group_name)
+                if url:
+                    markup = InlineKeyboardMarkup()
+                    markup.add(InlineKeyboardButton(text="Увійти в Google Meet", url=url))
+                
+                bot.reply_to(message, text, reply_markup=markup)
                 return
         bot.reply_to(message, "Зараз пари немає ⏸")
         return
@@ -879,8 +904,22 @@ def next_cmd(message):
         if org:
             start_dt = datetime(d.year, d.month, d.day, 13, 20)
             if start_dt > now:
-                text = "Наступна подія: організаційна година\n13:20-13:50 — Організаційна година (205) — Крамаренко Л.О."
-                bot.reply_to(message, text)
+                subj = org.get('subject', 'Організаційна година')
+                room = org.get('room', '')
+                teacher = org.get('teacher', '')
+                text = f"Наступна подія: організаційна година\n13:20-13:50 — {subj}"
+                if room:
+                    text += f" ({room})"
+                if teacher:
+                    text += f" — {teacher}"
+                
+                markup = None
+                url = get_meet_link_for_subject(subj, group_name)
+                if url:
+                    markup = InlineKeyboardMarkup()
+                    markup.add(InlineKeyboardButton(text="Увійти в Google Meet", url=url))
+                
+                bot.reply_to(message, text, reply_markup=markup)
                 return
         bot.reply_to(message, "Сьогодні більше пар немає ✅")
         return
@@ -1602,14 +1641,36 @@ def send_pair_notification(pair_key, pair_num, pair, day_key, user_id):
         if url:
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton(text="Увійти в Google Meet", url=url))
-    for uid_str, user_info in users.items():
-        if user_info.get("group") != group_name:
-            continue
-        uid = int(uid_str)
-        try:
-            bot.send_message(uid, text, reply_markup=markup)
-        except Exception as e:
-            print(f"Не зміг відправити нотіфікацію {uid}: {e}")
+    
+    try:
+        bot.send_message(user_id, text, reply_markup=markup)
+    except Exception as e:
+        print(f"Не зміг відправити нотіфікацію {user_id}: {e}")
+
+def send_org_notification(org_key, org, day_key, user_id):
+    """Отправка уведомления за 5 минут до организационной часов"""
+    group_name = get_user_group(user_id)
+    subj = org.get("subject", "Організаційна година")
+    room = org.get("room", "")
+    teacher = org.get("teacher", "")
+    
+    text = "Через ~5 хвилин організаційна година:\n"
+    text += f"13:20-13:50 — {subj}"
+    if room:
+        text += f" ({room})"
+    if teacher:
+        text += f" — {teacher}"
+    
+    markup = None
+    url = get_meet_link_for_subject(subj, group_name)
+    if url:
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton(text="Увійти в Google Meet", url=url))
+    
+    try:
+        bot.send_message(user_id, text, reply_markup=markup)
+    except Exception as e:
+        print(f"Не зміг відправити нотіфікацію орг.години {user_id}: {e}")
 
 def notifications_loop():
     global notified_pairs
@@ -1630,6 +1691,8 @@ def notifications_loop():
                 day_schedule = day_data.get(week_type, {})
                 if not day_schedule:
                     continue
+                
+                # Проверяем обычные пары
                 for pair_str, pair in day_schedule.items():
                     if pair_str == "org":
                         continue
@@ -1657,6 +1720,20 @@ def notifications_loop():
                                 if user_info.get("group") == group_name:
                                     send_pair_notification(key, pair_num, pair, day_key, int(uid_str))
                             notified_pairs.add(key)
+                
+                # Проверяем организационную часов (13:20-13:50)
+                org = day_schedule.get("org")
+                if org:
+                    start_dt = datetime(d.year, d.month, d.day, 13, 20)
+                    delta_sec = (start_dt - now).total_seconds()
+                    if 240 <= delta_sec <= 360:
+                        org_key = f"{date_key}_{group_name}_org"
+                        if org_key not in notified_pairs:
+                            print(f"Отправляю уведомление для организационной {org_key}")
+                            for uid_str, user_info in users.items():
+                                if user_info.get("group") == group_name:
+                                    send_org_notification(org_key, org, day_key, int(uid_str))
+                            notified_pairs.add(org_key)
         except Exception as e:
             print("Ошибка в notifications_loop:", e)
         time.sleep(60)
