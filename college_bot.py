@@ -43,7 +43,8 @@ USERS_FILE = "users.json"
 ABSENCES_FILE = "absences.json"
 CHANGELOG_FILE = "changelog.json"
 HOLIDAYS_FILE = "holidays.json"
-MEET_LINKS_FILE = "meet_links.json"
+MEET_LINKS_BCIG_FILE = "meet_links_bcig.json"  # для группы БЦІГ-25
+MEET_LINKS_BCIST_FILE = "meet_links_bcist.json"  # для группы БЦІСТ-25
 
 BELL_SCHEDULE = {
     "monday": {
@@ -145,7 +146,7 @@ def create_schedule_bcig():
                 "4": {"subject": "Географія",           "room": "123", "teacher": "Баранець Т.О."},
             },
         },
-                "friday": {
+        "friday": {
             # 1-я пара всегда отсутствует
             "чисельник": {
                 "2": {"subject": "Іноземна мова",       "room": "224 a", "teacher": "Криваноченкова Л.І."},
@@ -161,6 +162,7 @@ def create_schedule_bcig():
         "saturday": {},
         "sunday":   {},
     }
+
 def create_schedule_bcis():
     return {
         "monday": {
@@ -312,40 +314,103 @@ def save_holidays():
 
 holidays = load_holidays()
 
+# ================== НОВАЯ СИСТЕМА ССЫЛОК ==================
 def load_meet_links():
-    path = Path(MEET_LINKS_FILE)
-    if not path.exists():
-        return {
-            "Фізика і астрономія": "https://meet.google.com/yqs-gkhh-xqm?authuser=0&hs=179",
-            "Всесвітня історія": "https://meet.google.com/ejg-gvrv-iox?authuser=0&hs=179",
-            "Історія України": "https://meet.google.com/mpc-znwb-gkq?authuser=0&hs=179",
-            "Іноземна мова": "https://meet.google.com/xfq-qeab-vis?authuser=0&hs=179",
-            "Інформатика": "https://meet.google.com/qhx-qkcv-sds?authuser=0&hs=179",
-            "Математика": "https://meet.google.com/nnn-qzzy-yjf?authuser=0&hs=179",
-            "Фізична культура": "https://meet.google.com/swm-bpmx-dfb?authuser=0&hs=179",
-            "Географія": "https://meet.google.com/euh-zuqa-igg?authuser=0&hs=179",
-            "Організаційна година": "https://meet.google.com/hai-zbrq-pnb?authuser=0&hs=179",
-            "Зарубіжна література": "https://meet.google.com/hug-ddec-mop?authuser=0&hs=179",
-            "Українська література": "https://meet.google.com/ogm-ssbj-jzd?authuser=0&hs=179",
-            "Громадянська освіта": "https://meet.google.com/mzw-uedt-fzf?authuser=0&hs=179",
-            "Технології": "https://meet.google.com/oap-sefr-fgc?authuser=0&hs=179",
-            "Українська мова": "https://meet.google.com/wof-fggd-pet?authuser=0&hs=179",
-            "Захист України": "https://meet.google.com/mev-azeu-tiw?authuser=0&hs=179",
-            "Хімія": "https://meet.google.com/nup-vusc-tgs?authuser=0&hs=179",
-            "Біологія і екологія": "https://meet.google.com/dgr-knfu-apt?authuser=0&hs=179",
-            "Полезна мова": "https://meet.google.com/xfq-qeab-vis?authuser=0&hs=179",
-            "Захист України Сапко": "https://meet.google.com/mev-azeu-tiw?authuser=0&hs=179",
-            "Захист України Киящук": "https://meet.google.com/nmf-wxwf-ouv",
+    """Загружает ссылки для каждой группы из отдельных файлов"""
+    # Загружаем ссылки для БЦІГ-25
+    path_bcig = Path(MEET_LINKS_BCIG_FILE)
+    if not path_bcig.exists():
+        bcig_links = {
+            "Організаційна година": "https://meet.google.com/hai-zbrq-pnb",
+            "Громадянська освіта": "https://meet.google.com/tih-uuai-bdj",
+            "Українська мова": "https://meet.google.com/dtg-huzd-rvb",
+            "Українська література": "https://meet.google.com/vsg-xppe-vxk",
+            "Зарубіжна література": "https://meet.google.com/jpc-amxg-yuj",
+            "Іноземна мова": "https://meet.google.com/pow-yoee-vxr",
+            "Історія України": "https://meet.google.com/mpc-znwb-gkq",
+            "Всесвітня історія": "https://meet.google.com/ejg-gvrv-iox",
+            "Математика": "https://meet.google.com/nph-xdxh-xrd",
+            "Біологія і екологія": "https://meet.google.com/vic-bqov-kmc",
+            "Географія": "https://meet.google.com/udz-tpss-ckd",
+            "Фізика і астрономія": "https://meet.google.com/erm-mumv-dyo",
+            "Хімія": "https://meet.google.com/pqg-djpj-qmr",
+            "Захист України Сапко": "https://meet.google.com/mev-azeu-tiw",
+            "Захист України Киящук": "https://meet.google.com/nrn-zapd-zfx",
+            "Фізична культура": "https://meet.google.com/uod-dtnv-gwm",
+            "Інформатика": "https://meet.google.com/rfc-txdu-edx",
+            "Технології": "https://meet.google.com/pcw-ryik-bms"
         }
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+        with path_bcig.open("w", encoding="utf-8") as f:
+            json.dump(bcig_links, f, ensure_ascii=False, indent=2)
+    else:
+        with path_bcig.open("r", encoding="utf-8") as f:
+            bcig_links = json.load(f)
 
-def save_meet_links():
-    path = Path(MEET_LINKS_FILE)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(meet_links, f, ensure_ascii=False, indent=2)
+    # Загружаем ссылки для БЦІСТ-25
+    path_bcist = Path(MEET_LINKS_BCIST_FILE)
+    if not path_bcist.exists():
+        bcist_links = {
+            "Фізична культура": "https://meet.google.com/swm-bpmx-dfb",
+            "Іноземна мова": "https://meet.google.com/fjb-fjbh-ytu",
+            "Математика": "https://meet.google.com/nnn-qzzy-yjf",
+            "Організаційна година": "https://meet.google.com/hai-zbrq-pnb",
+            "Біологія і екологія": "https://meet.google.com/dgr-knfu-apt",
+            "Технології": "https://meet.google.com/bjy-dedr-got",
+            "Захист України Сапко": "https://meet.google.com/gsp-zxhg-gme",
+            "Захист України Киящук": "https://meet.google.com/nmf-wxwf-ouv",
+            "Фізика і астрономія": "https://meet.google.com/yqs-gkhh-xqm",
+            "Громадянська освіта": "https://meet.google.com/zng-jhhs-cst",
+            "Українська мова": "https://meet.google.com/sit-dnty-uhm",
+            "Зарубіжна література": "https://meet.google.com/auz-vzwn-eag",
+            "Географія": "https://meet.google.com/euh-zuqa-igg",
+            "Історія України": "https://meet.google.com/qun-pysg-yqg",
+            "Всесвітня історія": "https://meet.google.com/wmx-zvqd-akp",
+            "Українська література": "https://meet.google.com/nqi-hraf-cpg",
+            "Хімія": "https://meet.google.com/nup-vusc-tgs",
+            "Інформатика": "https://meet.google.com/rfc-txdu-edx"
+        }
+        with path_bcist.open("w", encoding="utf-8") as f:
+            json.dump(bcist_links, f, ensure_ascii=False, indent=2)
+    else:
+        with path_bcist.open("r", encoding="utf-8") as f:
+            bcist_links = json.load(f)
 
+    return {
+        "БЦІГ-25": bcig_links,
+        "БЦІСТ-25": bcist_links
+    }
+
+def save_meet_links(links_data):
+    """Сохраняет ссылки для каждой группы в отдельные файлы"""
+    for group_name, links in links_data.items():
+        filename = MEET_LINKS_BCIG_FILE if group_name == "БЦІГ-25" else MEET_LINKS_BCIST_FILE
+        path = Path(filename)
+        with path.open("w", encoding="utf-8") as f:
+            json.dump(links, f, ensure_ascii=False, indent=2)
+
+# Глобальная переменная для хранения ссылок (словарь словарей)
 meet_links = load_meet_links()
+
+def get_meet_link_for_subject(subj: str, group_name: str = None):
+    """Получить ссылку для предмета, учитывая группу пользователя"""
+    if not subj or not group_name:
+        return None
+    
+    # Получаем ссылки для конкретной группы
+    group_links = meet_links.get(group_name, {})
+    
+    # Сначала проверяем точное совпадение (для Захист України)
+    s = subj.strip().lower()
+    for key, url in group_links.items():
+        if key.strip().lower() == s:
+            return url
+    
+    # Если не нашли точное совпадение, проверяем частичное
+    for key, url in group_links.items():
+        if key.split()[0].lower() in s or s in key.lower():
+            return url
+    
+    return None
 
 # ================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==================
 def remember_user(message):
@@ -397,15 +462,6 @@ def get_pair_time(day_key, pair_num):
         return BELL_SCHEDULE["monday"].get(pair_num)
     else:
         return BELL_SCHEDULE["other"].get(pair_num)
-
-def get_meet_link_for_subject(subj: str):
-    if not subj:
-        return None
-    s = subj.strip().lower()
-    for key, url in meet_links.items():
-        if key.strip().lower() == s:
-            return url
-    return None
 
 def is_empty_pair(pair: dict) -> bool:
     subj = (pair.get("subject") or "").strip().lower()
@@ -480,6 +536,7 @@ def format_day_schedule(d, user_id=None):
 def build_day_markup(d, user_id=None):
     if not user_id or not get_user_group(user_id):
         return None
+    group_name = get_user_group(user_id)
     result = get_day_struct(d, user_id)
     if result[0] is None:
         return None
@@ -496,8 +553,8 @@ def build_day_markup(d, user_id=None):
         if is_empty_pair(pair):
             continue
         if "захист україни" in subj.strip().lower():
-            sapko_url = meet_links.get("Захист України Сапко")
-            kiyashchuk_url = meet_links.get("Захист України Киящук")
+            sapko_url = meet_links.get(group_name, {}).get("Захист України Сапко")
+            kiyashchuk_url = meet_links.get(group_name, {}).get("Захист України Киящук")
             if sapko_url:
                 markup.add(InlineKeyboardButton(text=f"{pair_num}) {subj} — Сапко", url=sapko_url))
                 has_buttons = True
@@ -505,7 +562,7 @@ def build_day_markup(d, user_id=None):
                 markup.add(InlineKeyboardButton(text=f"{pair_num}) {subj} — Киящук", url=kiyashchuk_url))
                 has_buttons = True
             continue
-        url = get_meet_link_for_subject(subj)
+        url = get_meet_link_for_subject(subj, group_name)
         if url:
             markup.add(InlineKeyboardButton(text=f"{pair_num}) {subj}", url=url))
             has_buttons = True
@@ -712,6 +769,7 @@ def now_cmd(message):
         return
     now = datetime.utcnow() + timedelta(hours=2)
     d = now.date()
+    group_name = get_user_group(message.from_user.id)
     day_key, used_week_type, day_schedule, _ = get_day_struct(d, message.from_user.id)
     if not day_schedule:
         bot.reply_to(message, "Сьогодні пар немає ✅")
@@ -764,14 +822,14 @@ def now_cmd(message):
     markup = None
     if "захист україни" in subj_norm:
         markup = InlineKeyboardMarkup(row_width=1)
-        sapko_url = meet_links.get("Захист України Сапко")
-        kiyashchuk_url = meet_links.get("Захист України Киящук")
+        sapko_url = meet_links.get(group_name, {}).get("Захист України Сапко")
+        kiyashchuk_url = meet_links.get(group_name, {}).get("Захист України Киящук")
         if sapko_url:
             markup.add(InlineKeyboardButton(text="Захист України — Сапко", url=sapko_url))
         if kiyashchuk_url:
             markup.add(InlineKeyboardButton(text="Захист України — Киящук", url=kiyashchuk_url))
     else:
-        url = get_meet_link_for_subject(subj)
+        url = get_meet_link_for_subject(subj, group_name)
         if url:
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton(text="Увійти в Google Meet", url=url))
@@ -789,6 +847,7 @@ def next_cmd(message):
         return
     now = datetime.utcnow() + timedelta(hours=2)
     d = now.date()
+    group_name = get_user_group(message.from_user.id)
     day_key, used_week_type, day_schedule, _ = get_day_struct(d, message.from_user.id)
     if not day_schedule:
         bot.reply_to(message, "Сьогодні пар немає ✅")
@@ -838,14 +897,14 @@ def next_cmd(message):
     markup = None
     if "захист україни" in subj_norm:
         markup = InlineKeyboardMarkup(row_width=1)
-        sapko_url = meet_links.get("Захист України Сапко")
-        kiyashchuk_url = meet_links.get("Захист України Киящук")
+        sapko_url = meet_links.get(group_name, {}).get("Захист України Сапко")
+        kiyashchuk_url = meet_links.get(group_name, {}).get("Захист України Киящук")
         if sapko_url:
             markup.add(InlineKeyboardButton(text="Захист України — Сапко", url=sapko_url))
         if kiyashchuk_url:
             markup.add(InlineKeyboardButton(text="Захист України — Киящук", url=kiyashchuk_url))
     else:
-        url = get_meet_link_for_subject(subj)
+        url = get_meet_link_for_subject(subj, group_name)
         if url:
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton(text="Увійти в Google Meet", url=url))
@@ -1125,8 +1184,8 @@ def admin_help(message):
     text = (
         "👑 Адмін-команди:\n\n"
         "/setpair <група> <день> <номер> <тиждень> <предмет> ; <аудиторія> ; <викладач>\n"
-        "/setlink <предмет> <посилання> – додати/змінити Meet-посилання\n"
-        "/links – список усіх посилань\n"
+        "/setlink <група> <предмет> <посилання> – додати/змінити Meet-посилання\n"
+        "/links <група> – список усіх посилань для групи\n"
         "/who – список користувачів\n"
         "/stats <week|month> – статистика /wont\n"
         "/absent – хто сьогодні відсутній\n"
@@ -1138,7 +1197,7 @@ def admin_help(message):
         "/holiday_status – статус канікул\n\n"
         "Приклади:\n"
         "/setpair БЦІГ-25 понеділок 1 чисельник Фізика ; 129 ; Гуденко І.А.\n"
-        "/setlink Математика https://meet.google.com/xxx \n"
+        "/setlink БЦІГ-25 Математика https://meet.google.com/xxx \n"
         "/setgroup 123456789 БЦІСТ-25"
     )
     bot.reply_to(message, text)
@@ -1229,27 +1288,42 @@ def setlink_cmd(message):
     remember_user(message)
     if not is_admin(message):
         return
-    parts = message.text.split(maxsplit=2)
-    if len(parts) < 3:
+    parts = message.text.split(maxsplit=3)
+    if len(parts) < 4:
         bot.reply_to(message, 
-            "Формат: /setlink <предмет> <посилання>\n"
-            "Пример: /setlink Математика https://meet.google.com/xxx \n"
-            "Или: /setlink 'Захист України Сапко' https://meet.google.com/xxx "
+            "Формат: /setlink <група> <предмет> <посилання>\n"
+            "Пример: /setlink БЦІГ-25 Математика https://meet.google.com/xxx \n"
+            "Или: /setlink БЦІГ-25 'Захист України Сапко' https://meet.google.com/xxx "
         )
         return
-    subject = parts[1]
-    link = parts[2]
-    meet_links[subject] = link
-    save_meet_links()
-    bot.reply_to(message, f"✅ Посилання для '{subject}' встановлено:\n{link}")
+    group_name = parts[1]
+    subject = parts[2]
+    link = parts[3]
+    
+    if group_name not in meet_links:
+        bot.reply_to(message, f"Група {group_name} не знайдена. Доступні групи: {', '.join(meet_links.keys())}")
+        return
+    
+    meet_links[group_name][subject] = link
+    save_meet_links(meet_links)
+    bot.reply_to(message, f"✅ Посилання для групи {group_name}, предмет '{subject}' встановлено:\n{link}")
 
 @bot.message_handler(commands=["links"])
 def links_cmd(message):
     remember_user(message)
     if not is_admin(message):
         return
-    text = "📎 Збережені посилання:\n\n"
-    for subject, link in meet_links.items():
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        bot.reply_to(message, "Формат: /links <група>\nПример: /links БЦІГ-25")
+        return
+    group_name = parts[1].strip()
+    if group_name not in meet_links:
+        bot.reply_to(message, f"Група {group_name} не знайдена. Доступні групи: {', '.join(meet_links.keys())}")
+        return
+    
+    text = f"📎 Збережені посилання для групи {group_name}:\n\n"
+    for subject, link in meet_links[group_name].items():
         text += f"• {subject}: {link}\n"
     bot.reply_to(message, text[:4000])
 
@@ -1350,7 +1424,7 @@ def stats_cmd(message):
             day_name = DAYS_RU.get(day_key, day_key)
             pair_num = rec.get("pair_num", "?")
             reason = rec.get("reason", "—")
-            lines.append(f"   • {date_str}, {day_name}, пара: {pair_num} — {reason[:50]}...")
+            lines.append(f"   • {date_str}, {day_name}, пара {pair_num} — {reason[:50]}...")
         lines.append("")
     text = "\n".join(lines).strip()
     if len(text) > 4000:
@@ -1502,6 +1576,7 @@ def send_pair_notification(pair_key, pair_num, pair, day_key, user_id):
         return
     if holidays["is_holiday"]:
         return
+    group_name = get_user_group(user_id)
     text = "Через ~5 хвилин пара:\n"
     time_txt = get_pair_time(day_key, pair_num) or "час ?"
     subj = pair.get("subject", "—")
@@ -1516,19 +1591,19 @@ def send_pair_notification(pair_key, pair_num, pair, day_key, user_id):
     markup = None
     if "захист україни" in subj_norm:
         markup = InlineKeyboardMarkup(row_width=1)
-        sapko_url = meet_links.get("Захист України Сапко")
-        kiyashchuk_url = meet_links.get("Захист України Киящук")
+        sapko_url = meet_links.get(group_name, {}).get("Захист України Сапко")
+        kiyashchuk_url = meet_links.get(group_name, {}).get("Захист України Киящук")
         if sapko_url:
             markup.add(InlineKeyboardButton(text=f"{pair_num}) {subj} — Сапко", url=sapko_url))
         if kiyashchuk_url:
             markup.add(InlineKeyboardButton(text=f"{pair_num}) {subj} — Киящук", url=kiyashchuk_url))
     else:
-        url = get_meet_link_for_subject(subj)
+        url = get_meet_link_for_subject(subj, group_name)
         if url:
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton(text="Увійти в Google Meet", url=url))
     for uid_str, user_info in users.items():
-        if user_info.get("group") != get_user_group(user_id):
+        if user_info.get("group") != group_name:
             continue
         uid = int(uid_str)
         try:
