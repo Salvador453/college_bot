@@ -39,12 +39,13 @@ REFERENCE_MONDAY = date(2026, 1, 12)
 REFERENCE_WEEK_TYPE = "чисельник"
 
 SCHEDULE_FILE = "schedule.json"
+TEMP_CHANGES_FILE = "temp_changes.json"  # Новый файл для временных изменений
 USERS_FILE = "users.json"
 ABSENCES_FILE = "absences.json"
 CHANGELOG_FILE = "changelog.json"
 HOLIDAYS_FILE = "holidays.json"
-MEET_LINKS_BCIG_FILE = "meet_links_bcig.json"  # для группы БЦІГ-25
-MEET_LINKS_BCIST_FILE = "meet_links_bcist.json"  # для группы БЦІСТ-25
+MEET_LINKS_BCIG_FILE = "meet_links_bcig.json"
+MEET_LINKS_BCIST_FILE = "meet_links_bcist.json"
 
 BELL_SCHEDULE = {
     "monday": {
@@ -88,7 +89,7 @@ NO_LESSON_SUBJECTS = {
     "уроку немає", "-", "", " ",
 }
 
-# ================== РАСПИСАНИЯ (ВОЗВРАЩЕНО К ИЗНАЧАЛЬНОМУ ВИДУ) ==================
+# ================== РАСПИСАНИЯ ==================
 def create_schedule_bcig():
     return {
         "monday": {
@@ -107,7 +108,6 @@ def create_schedule_bcig():
             },
         },
         "tuesday": {
-            # 1-й пары НЕТ
             "чисельник": {
                 "2": {"subject": "Фізична культура", "room": "с/з №2", "teacher": "Багрін В.С."},
                 "3": {"subject": "Математика",       "room": "121",  "teacher": "Приймак О.В."},
@@ -120,7 +120,6 @@ def create_schedule_bcig():
             },
         },
         "wednesday": {
-            # 1-й пары НЕТ
             "чисельник": {
                 "2": {"subject": "Технології",          "room": "208", "teacher": "Потапова А.О."},
                 "3": {"subject": "Біологія і екологія", "room": "16",  "teacher": "Золотова К.В."},
@@ -137,7 +136,6 @@ def create_schedule_bcig():
                 "1": {"subject": "Історія України",     "room": "114", "teacher": "Мелещук Ю.Л."},
                 "2": {"subject": "Громадянська освіта", "room": "142", "teacher": "Зубко Г.М."},
                 "3": {"subject": "Інформатика",         "room": "39",  "teacher": "Короленко / Єреп"},
-                # 4-й пары НЕТ
             },
             "знаменник": {
                 "1": {"subject": "Історія України",     "room": "114", "teacher": "Мелещук Ю.Л."},
@@ -147,7 +145,6 @@ def create_schedule_bcig():
             },
         },
         "friday": {
-            # 1-я пара всегда отсутствует
             "чисельник": {
                 "2": {"subject": "Іноземна мова",       "room": "224 a", "teacher": "Криваноченкова Л.І."},
                 "3": {"subject": "Хімія",               "room": "16",    "teacher": "Золотова К.В."},
@@ -177,7 +174,6 @@ def create_schedule_bcis():
                 "2": {"subject": "Іноземна мова",    "room": "224 а", "teacher": "Криваноченкова Л.І."},
                 "3": {"subject": "Математика",       "room": "121",  "teacher": "Приймак О.В."},
                 "org": {"subject": "Організаційна година","room": "205", "teacher": "Крамаренко Л.О."},
-                
             },
         },
         "tuesday": {
@@ -202,7 +198,7 @@ def create_schedule_bcis():
                 "1": {"subject": "Хімія",               "room": "16",  "teacher": "Золотова К.В."},
                 "2": {"subject": "Технології",          "room": "208", "teacher": "Потапова А.О."},
                 "3": {"subject": "Захист України",      "room": "242 / 201", "teacher": "Санко / Киянчук"},
-                "4": {"subject": "Фізика і астрономія",      "room": "242 / 201", "teacher": "Санко / Киянчук"},
+                "4": {"subject": "Фізика і астрономія", "room": "129", "teacher": "Гуленко І.А."},
             },
         },
         "thursday": {
@@ -211,7 +207,6 @@ def create_schedule_bcis():
                 "2": {"subject": "Фізика і астрономія", "room": "129", "teacher": "Гуленко І.А."},
                 "3": {"subject": "Українська мова",     "room": "307", "teacher": "Гавриленко С.Т."},
                 "4": {"subject": "Зарубіжна література","room": "116", "teacher": "Менцєрякова О.В."},
-                
             },
             "знаменник": {
                 "1": {"subject": "Громадянська освіта", "room": "142", "teacher": "Зубко Г.М."},
@@ -251,7 +246,27 @@ def save_schedule(data):
     with path.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+def load_temp_changes():
+    """Загружает временные изменения"""
+    path = Path(TEMP_CHANGES_FILE)
+    if not path.exists():
+        return {"БЦІГ-25": {}, "БЦІСТ-25": {}}
+    with path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+        if "БЦІГ-25" not in data:
+            data["БЦІГ-25"] = {}
+        if "БЦІСТ-25" not in data:
+            data["БЦІСТ-25"] = {}
+        return data
+
+def save_temp_changes():
+    """Сохраняет временные изменения"""
+    path = Path(TEMP_CHANGES_FILE)
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(temp_changes, f, ensure_ascii=False, indent=2)
+
 schedule = load_schedule()
+temp_changes = load_temp_changes()
 
 def load_users():
     path = Path(USERS_FILE)
@@ -309,31 +324,28 @@ def save_holidays():
 
 holidays = load_holidays()
 
-# ================== НОВАЯ СИСТЕМА ССЫЛОК ==================
 def load_meet_links():
-    """Загружает ссылки для каждой группы из отдельных файлов"""
-    # Загружаем ссылки для БЦІГ-25
     path_bcig = Path(MEET_LINKS_BCIG_FILE)
     if not path_bcig.exists():
         bcig_links = {
-            "Організаційна година": "https://meet.google.com/hai-zbrq-pnb",
-            "Громадянська освіта": "https://meet.google.com/tih-uuai-bdj",
-            "Українська мова": "https://meet.google.com/dtg-huzd-rvb",
-            "Українська література": "https://meet.google.com/vsg-xppe-vxk",
-            "Зарубіжна література": "https://meet.google.com/jpc-amxg-yuj",
-            "Іноземна мова": "https://meet.google.com/pow-yoee-vxr",
-            "Історія України": "https://meet.google.com/mpc-znwb-gkq",
-            "Всесвітня історія": "https://meet.google.com/ejg-gvrv-iox",
-            "Математика": "https://meet.google.com/nph-xdxh-xrd",
-            "Біологія і екологія": "https://meet.google.com/vic-bqov-kmc",
-            "Географія": "https://meet.google.com/udz-tpss-ckd",
-            "Фізика і астрономія": "https://meet.google.com/erm-mumv-dyo",
-            "Хімія": "https://meet.google.com/pqg-djpj-qmr",
-            "Захист України Сапко": "https://meet.google.com/mev-azeu-tiw",
-            "Захист України Киящук": "https://meet.google.com/nrn-zapd-zfx",
-            "Фізична культура": "https://meet.google.com/uod-dtnv-gwm",
-            "Інформатика": "https://meet.google.com/rfc-txdu-edx",
-            "Технології": "https://meet.google.com/pcw-ryik-bms"
+            "Організаційна година": "https://meet.google.com/hai-zbrq-pnb ",
+            "Громадянська освіта": "https://meet.google.com/tih-uuai-bdj ",
+            "Українська мова": "https://meet.google.com/dtg-huzd-rvb ",
+            "Українська література": "https://meet.google.com/vsg-xppe-vxk ",
+            "Зарубіжна література": "https://meet.google.com/jpc-amxg-yuj ",
+            "Іноземна мова": "https://meet.google.com/pow-yoee-vxr ",
+            "Історія України": "https://meet.google.com/mpc-znwb-gkq ",
+            "Всесвітня історія": "https://meet.google.com/ejg-gvrv-iox ",
+            "Математика": "https://meet.google.com/nph-xdxh-xrd ",
+            "Біологія і екологія": "https://meet.google.com/vic-bqov-kmc ",
+            "Географія": "https://meet.google.com/udz-tpss-ckd ",
+            "Фізика і астрономія": "https://meet.google.com/erm-mumv-dyo ",
+            "Хімія": "https://meet.google.com/pqg-djpj-qmr ",
+            "Захист України Сапко": "https://meet.google.com/mev-azeu-tiw ",
+            "Захист України Киящук": "https://meet.google.com/nrn-zapd-zfx ",
+            "Фізична культура": "https://meet.google.com/uod-dtnv-gwm ",
+            "Інформатика": "https://meet.google.com/rfc-txdu-edx ",
+            "Технології": "https://meet.google.com/pcw-ryik-bms "
         }
         with path_bcig.open("w", encoding="utf-8") as f:
             json.dump(bcig_links, f, ensure_ascii=False, indent=2)
@@ -341,28 +353,27 @@ def load_meet_links():
         with path_bcig.open("r", encoding="utf-8") as f:
             bcig_links = json.load(f)
 
-    # Загружаем ссылки для БЦІСТ-25
     path_bcist = Path(MEET_LINKS_BCIST_FILE)
     if not path_bcist.exists():
         bcist_links = {
-            "Фізична культура": "https://meet.google.com/swm-bpmx-dfb",
-            "Іноземна мова": "https://meet.google.com/fjb-fjbh-ytu",
-            "Математика": "https://meet.google.com/nnn-qzzy-yjf",
-            "Організаційна година": "https://meet.google.com/hai-zbrq-pnb",
-            "Біологія і екологія": "https://meet.google.com/dgr-knfu-apt",
-            "Технології": "https://meet.google.com/bjy-dedr-got",
-            "Захист України Сапко": "https://meet.google.com/gsp-zxhg-gme",
-            "Захист України Киящук": "https://meet.google.com/nmf-wxwf-ouv",
-            "Фізика і астрономія": "https://meet.google.com/yqs-gkhh-xqm",
-            "Громадянська освіта": "https://meet.google.com/zng-jhhs-cst",
-            "Українська мова": "https://meet.google.com/sit-dnty-uhm",
-            "Зарубіжна література": "https://meet.google.com/auz-vzwn-eag",
-            "Географія": "https://meet.google.com/euh-zuqa-igg",
-            "Історія України": "https://meet.google.com/qun-pysg-yqg",
-            "Всесвітня історія": "https://meet.google.com/wmx-zvqd-akp",
-            "Українська література": "https://meet.google.com/nqi-hraf-cpg",
-            "Хімія": "https://meet.google.com/nup-vusc-tgs",
-            "Інформатика": "https://meet.google.com/rfc-txdu-edx"
+            "Фізична культура": "https://meet.google.com/swm-bpmx-dfb ",
+            "Іноземна мова": "https://meet.google.com/fjb-fjbh-ytu ",
+            "Математика": "https://meet.google.com/nnn-qzzy-yjf ",
+            "Організаційна година": "https://meet.google.com/hai-zbrq-pnb ",
+            "Біологія і екологія": "https://meet.google.com/dgr-knfu-apt ",
+            "Технології": "https://meet.google.com/bjy-dedr-got ",
+            "Захист України Сапко": "https://meet.google.com/gsp-zxhg-gme ",
+            "Захист України Киящук": "https://meet.google.com/nmf-wxwf-ouv ",
+            "Фізика і астрономія": "https://meet.google.com/yqs-gkhh-xqm ",
+            "Громадянська освіта": "https://meet.google.com/zng-jhhs-cst ",
+            "Українська мова": "https://meet.google.com/sit-dnty-uhm ",
+            "Зарубіжна література": "https://meet.google.com/auz-vzwn-eag ",
+            "Географія": "https://meet.google.com/euh-zuqa-igg ",
+            "Історія України": "https://meet.google.com/qun-pysg-yqg ",
+            "Всесвітня історія": "https://meet.google.com/wmx-zvqd-akp ",
+            "Українська література": "https://meet.google.com/nqi-hraf-cpg ",
+            "Хімія": "https://meet.google.com/nup-vusc-tgs ",
+            "Інформатика": "https://meet.google.com/rfc-txdu-edx "
         }
         with path_bcist.open("w", encoding="utf-8") as f:
             json.dump(bcist_links, f, ensure_ascii=False, indent=2)
@@ -376,31 +387,24 @@ def load_meet_links():
     }
 
 def save_meet_links(links_data):
-    """Сохраняет ссылки для каждой группы в отдельные файлы"""
     for group_name, links in links_data.items():
         filename = MEET_LINKS_BCIG_FILE if group_name == "БЦІГ-25" else MEET_LINKS_BCIST_FILE
         path = Path(filename)
         with path.open("w", encoding="utf-8") as f:
             json.dump(links, f, ensure_ascii=False, indent=2)
 
-# Глобальная переменная для хранения ссылок (словарь словарей)
 meet_links = load_meet_links()
 
 def get_meet_link_for_subject(subj: str, group_name: str = None):
-    """Получить ссылку для предмета, учитывая группу пользователя"""
     if not subj or not group_name:
         return None
     
-    # Получаем ссылки для конкретной группы
     group_links = meet_links.get(group_name, {})
-    
-    # Сначала проверяем точное совпадение (для Захист України)
     s = subj.strip().lower()
     for key, url in group_links.items():
         if key.strip().lower() == s:
             return url
     
-    # Если не нашли точное совпадение, проверяем частичное
     for key, url in group_links.items():
         if key.split()[0].lower() in s or s in key.lower():
             return url
@@ -462,24 +466,51 @@ def is_empty_pair(pair: dict) -> bool:
     subj = (pair.get("subject") or "").strip().lower()
     return subj in NO_LESSON_SUBJECTS
 
+def get_schedule_with_changes(group_name, day_key, week_type):
+    """Получает расписание с учетом временных изменений"""
+    if group_name not in schedule:
+        return {}
+    
+    day_data = schedule[group_name].get(day_key, {})
+    day_schedule = day_data.get(week_type, {}).copy()
+    
+    if (group_name in temp_changes and 
+        day_key in temp_changes[group_name] and 
+        week_type in temp_changes[group_name][day_key]):
+        
+        for pair_num, change in temp_changes[group_name][day_key][week_type].items():
+            day_schedule[pair_num] = {
+                "subject": change["subject"],
+                "room": change.get("room", ""),
+                "teacher": change.get("teacher", "")
+            }
+    
+    return day_schedule
+
 def get_day_struct(d, user_id=None):
     if user_id:
-        user_schedule = get_schedule_for_user(user_id)
-        if not user_schedule:
+        group_name = get_user_group(user_id)
+        if not group_name:
             return None, None, None, None
     else:
-        user_schedule = schedule.get("БЦІГ-25")
+        group_name = "БЦІГ-25"
+    
+    if group_name not in schedule:
+        return None, None, None, None
+    
     week_type = get_week_type(d)
     day_key = get_day_key(d)
-    day_data = user_schedule.get(day_key, {})
-    day_schedule = day_data.get(week_type, {})
+    
+    day_schedule = get_schedule_with_changes(group_name, day_key, week_type)
+    
     used_week_type = week_type
     if not day_schedule:
         other = "знаменник" if week_type == "чисельник" else "чисельник"
-        if day_data.get(other):
-            day_schedule = day_data[other]
+        day_schedule = get_schedule_with_changes(group_name, day_key, other)
+        if day_schedule:
             used_week_type = f"{week_type} (як у {other})"
-    return day_key, used_week_type, day_schedule, user_schedule
+    
+    return day_key, used_week_type, day_schedule, schedule.get(group_name, {})
 
 def format_day_schedule(d, user_id=None):
     if user_id and not get_user_group(user_id):
@@ -497,7 +528,7 @@ def format_day_schedule(d, user_id=None):
     else:
         header += f"📋 Тиждень: {used_week_type.upper()}\n\n"
 
-    if not day_schedule and not day_schedule.get("org"):
+    if not day_schedule:
         return header + "Пар немає ✅"
 
     lines = [header]
@@ -539,7 +570,6 @@ def build_day_markup(d, user_id=None):
     markup = InlineKeyboardMarkup(row_width=1)
     has_buttons = False
 
-    # Добавляем кнопки для обычных пар
     for pair_str in sorted(day_schedule.keys(), key=lambda x: int(x) if x.isdigit() else 0):
         if pair_str == "org":
             continue
@@ -563,7 +593,6 @@ def build_day_markup(d, user_id=None):
             markup.add(InlineKeyboardButton(text=f"{pair_num}) {subj}", url=url))
             has_buttons = True
     
-    # Добавляем кнопку для организационной часов org
     org = day_schedule.get("org")
     if org:
         subj = org.get("subject", "Організаційна година")
@@ -635,7 +664,6 @@ def send_welcome(message):
         if is_admin(message):
             text += "\n👑 Адмін-команди:\n"
             text += "/adminhelp – список адмін-команд\n"
-            text += "/setgroup <id> <група> – змінити групу користувачу\n"
         bot.reply_to(message, text)
     else:
         markup = InlineKeyboardMarkup(row_width=1)
@@ -944,7 +972,6 @@ def next_cmd(message):
             markup.add(InlineKeyboardButton(text="Увійти в Google Meet", url=url))
     bot.reply_to(message, text, reply_markup=markup)
 
-# ---------- /wont (полностью без изменений) ----------
 @bot.message_handler(commands=["wont"])
 def wont_cmd(message):
     remember_user(message)
@@ -979,7 +1006,6 @@ def wont_cmd(message):
         return
     rest_lower = rest.lower()
     u = message.from_user
-    # определяем день
     day_key = None
     today_words = {"сьогодні", "сегодня", "today"}
     tomorrow_words = {"завтра", "tomorrow"}
@@ -1005,7 +1031,6 @@ def wont_cmd(message):
         )
         return
     day_name_ua = DAYS_RU.get(day_key, day_key)
-    # извлекаем номера пар
     pairs = []
     for m in re.findall(r"\b([1-5])\s*(?:й|я|ша|шу|та|у|ю|-й|-я|-ша|-та)?\b", rest_lower):
         try:
@@ -1032,7 +1057,6 @@ def wont_cmd(message):
             "Напиши, на які саме: наприклад 'на 1й парі і на 4 парі' або '2 і 3 пару'."
         )
         return
-    # извлекаем ФИО
     tokens = rest.split()
     tokens_lower = rest.lower().split()
     stopwords = {"меня", "мене", "мне", "мені", "я", "не", "у", "в"}
@@ -1052,7 +1076,6 @@ def wont_cmd(message):
             fio = f"@{u.username}"
         else:
             fio = f"id {u.id}"
-    # причина
     reason_markers = ["бо ", "бо,", "потому что", "потому, что", "потому ", "из-за", "через ", "because"]
     reason_idx = -1
     tail = rest[len(fio):].lstrip(" ,.-—")
@@ -1068,7 +1091,6 @@ def wont_cmd(message):
         reason = tail.strip()
     if not reason:
         reason = "—"
-    # сохраняем
     now_str = (datetime.utcnow() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M")
     pairs_str = ", ".join(str(p) for p in sorted(pairs))
     for pair_num in pairs:
@@ -1084,7 +1106,6 @@ def wont_cmd(message):
         }
         absences.append(record)
     save_absences()
-    # отправляем админу
     admin_text = (
         "📢 Повідомлення про відсутність студента\n\n"
         f"👤 Студент (ПІБ): {fio}\n"
@@ -1103,7 +1124,6 @@ def wont_cmd(message):
         "Ок, я передав інформацію, що тебе не буде на парі(ях) ✅"
     )
 
-# ---------- КАНИКУЛЫ (упрощённо) ----------
 @bot.message_handler(commands=["holiday"])
 def holiday_cmd(message):
     remember_user(message)
@@ -1209,58 +1229,45 @@ def holiday_status_cmd(message):
     )
     bot.reply_to(message, response)
 
-# ================== АДМИН-КОМАНДЫ ==================
-@bot.message_handler(commands=["adminhelp"])
-def admin_help(message):
-    remember_user(message)
-    if not is_admin(message):
-        return
-    text = (
-        "👑 Адмін-команди:\n\n"
-        "/setpair <група> <день> <номер> <тиждень> <предмет> ; <аудиторія> ; <викладач>\n"
-        "/setlink <група> <предмет> <посилання> – додати/змінити Meet-посилання\n"
-        "/links <група> – список усіх посилань для групи\n"
-        "/who – список користувачів\n"
-        "/stats <week|month> – статистика /wont\n"
-        "/absent – хто сьогодні відсутній\n"
-        "/changelog – останні зміни розкладу\n"
-        "/whois <@username|id> – інфа по користувачу\n"
-        "/setgroup <id> <група> – змінити групу користувачу\n"
-        "/holiday <текст> – оголосити канікули\n"
-        "/school_start <текст> – оголосити початок навчання\n"
-        "/holiday_status – статус канікул\n\n"
-        "Приклади:\n"
-        "/setpair БЦІГ-25 понеділок 1 чисельник Фізика ; 129 ; Гуденко І.А.\n"
-        "/setlink БЦІГ-25 Математика https://meet.google.com/xxx \n"
-        "/setgroup 123456789 БЦІСТ-25"
-    )
-    bot.reply_to(message, text)
-
+# ================== НОВАЯ СИСТЕМА ВРЕМЕННЫХ ИЗМЕНЕНИЙ ==================
 @bot.message_handler(commands=["setpair"])
 def setpair_cmd(message):
     remember_user(message)
     if not is_admin(message):
         return
+    
     try:
         _, rest = message.text.split(" ", 1)
     except ValueError:
         bot.reply_to(message, 
             "Формат: /setpair <група> <день> <номер> <тиждень> <предмет> ; <аудиторія> ; <викладач>\n"
-            "Пример: /setpair БЦІГ-25 понеділок 1 чисельник Фізика ; 129 ; Гуденко І.А."
+            "Примеры:\n"
+            "/setpair БЦІГ-25 понеділок 1 чисельник Фізика ; 129 ; Гуденко І.А.\n"
+            "/setpair БЦІСТ-25 середа 2 знаменник Математика ; 121 ; Приймак О.В.\n"
+            "📝 Изменение действует до конца недели (воскресенья)"
         )
         return
+    
     parts = rest.split(maxsplit=5)
     if len(parts) < 6:
         bot.reply_to(message, "Недостатньо параметрів")
         return
+    
     group_name, day_raw, pair_str, week_raw, subject_rest = parts[0], parts[1], parts[2], parts[3], parts[4]
-    if group_name not in schedule:
-        bot.reply_to(message, f"Група {group_name} не знайдена. Доступні групи: {', '.join(schedule.keys())}")
+    
+    if group_name not in ["БЦІГ-25", "БЦІСТ-25"]:
+        bot.reply_to(message, 
+            f"Невірна група. Доступні групи:\n"
+            f"• БЦІГ-25\n"
+            f"• БЦІСТ-25 (включая ТЕ-25)"
+        )
         return
+    
     day_key = DAY_ALIASES.get(day_raw.lower())
     if not day_key:
         bot.reply_to(message, "Невірний день")
         return
+    
     try:
         pair_num = int(pair_str)
         if pair_num < 1 or pair_num > 6:
@@ -1269,6 +1276,7 @@ def setpair_cmd(message):
     except ValueError:
         bot.reply_to(message, "Номер пари має бути числом")
         return
+    
     w_raw = week_raw.lower()
     if w_raw.startswith("чис"):
         week_type = "чисельник"
@@ -1277,6 +1285,7 @@ def setpair_cmd(message):
     else:
         bot.reply_to(message, "Невірний тип тижня")
         return
+    
     if ";" in subject_rest:
         parts2 = subject_rest.split(";", 2)
         subject = parts2[0].strip()
@@ -1286,13 +1295,27 @@ def setpair_cmd(message):
         subject = subject_rest.strip()
         room = ""
         teacher = ""
-    schedule[group_name].setdefault(day_key, {}).setdefault(week_type, {})
-    schedule[group_name][day_key][week_type][str(pair_num)] = {
+    
+    if group_name not in temp_changes:
+        temp_changes[group_name] = {}
+    
+    if day_key not in temp_changes[group_name]:
+        temp_changes[group_name][day_key] = {}
+    
+    if week_type not in temp_changes[group_name][day_key]:
+        temp_changes[group_name][day_key][week_type] = {}
+    
+    temp_changes[group_name][day_key][week_type][str(pair_num)] = {
         "subject": subject,
         "room": room,
-        "teacher": teacher
+        "teacher": teacher,
+        "changed_at": (datetime.utcnow() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S"),
+        "changed_by": message.from_user.id,
+        "original_subject": schedule[group_name].get(day_key, {}).get(week_type, {}).get(str(pair_num), {}).get("subject", "")
     }
-    save_schedule(schedule)
+    
+    save_temp_changes()
+    
     now_local = datetime.utcnow() + timedelta(hours=2)
     record = {
         "timestamp": now_local.strftime("%Y-%m-%d %H:%M:%S"),
@@ -1306,16 +1329,439 @@ def setpair_cmd(message):
         "admin_id": message.from_user.id,
         "admin_username": message.from_user.username or "",
         "admin_first_name": message.from_user.first_name or "",
+        "change_type": "temporary"
     }
     changelog.append(record)
     save_changelog()
+    
     time_txt = get_pair_time(day_key, pair_num) or "час ?"
     bot.reply_to(
         message,
-        f"✅ Оновлено розклад для групи {group_name}:\n"
+        f"✅ Встановлено тимчасову заміну для групи {group_name} (діє до неділі):\n"
         f"{DAYS_RU[day_key]}, пара {pair_num} ({week_type})\n"
         f"{time_txt} — {subject} {f'({room})' if room else ''} {f'— {teacher}' if teacher else ''}"
     )
+
+@bot.message_handler(commands=["resetpair"])
+def resetpair_cmd(message):
+    remember_user(message)
+    if not is_admin(message):
+        return
+    
+    try:
+        _, rest = message.text.split(" ", 1)
+    except ValueError:
+        bot.reply_to(message,
+            "Формат: /resetpair <група> <день> <номер> <тиждень>\n"
+            "Примеры:\n"
+            "/resetpair БЦІГ-25 понеділок 1 чисельник\n"
+            "/resetpair БЦІСТ-25 середа 2 знаменник\n"
+            "Скине тимчасову заміну для вказаної пари"
+        )
+        return
+    
+    parts = rest.split(maxsplit=4)
+    if len(parts) < 4:
+        bot.reply_to(message, "Недостатньо параметрів")
+        return
+    
+    group_name, day_raw, pair_str, week_raw = parts[0], parts[1], parts[2], parts[3]
+    
+    if group_name not in ["БЦІГ-25", "БЦІСТ-25"]:
+        bot.reply_to(message, f"Невірна група. Використовуйте: БЦІГ-25 або БЦІСТ-25")
+        return
+    
+    day_key = DAY_ALIASES.get(day_raw.lower())
+    if not day_key:
+        bot.reply_to(message, "Невірний день")
+        return
+    
+    try:
+        pair_num = int(pair_str)
+    except ValueError:
+        bot.reply_to(message, "Номер пари має бути числом")
+        return
+    
+    w_raw = week_raw.lower()
+    if w_raw.startswith("чис"):
+        week_type = "чисельник"
+    elif w_raw.startswith("зн"):
+        week_type = "знаменник"
+    else:
+        bot.reply_to(message, "Невірний тип тижня")
+        return
+    
+    if (group_name in temp_changes and 
+        day_key in temp_changes[group_name] and 
+        week_type in temp_changes[group_name][day_key] and
+        str(pair_num) in temp_changes[group_name][day_key][week_type]):
+        
+        del temp_changes[group_name][day_key][week_type][str(pair_num)]
+        
+        if not temp_changes[group_name][day_key][week_type]:
+            del temp_changes[group_name][day_key][week_type]
+        if not temp_changes[group_name][day_key]:
+            del temp_changes[group_name][day_key]
+        if not temp_changes[group_name]:
+            del temp_changes[group_name]
+        
+        save_temp_changes()
+        
+        now_local = datetime.utcnow() + timedelta(hours=2)
+        record = {
+            "timestamp": now_local.strftime("%Y-%m-%d %H:%M:%S"),
+            "group": group_name,
+            "day_key": day_key,
+            "pair_num": pair_num,
+            "week_type": week_type,
+            "action": "reset_temporary_change",
+            "admin_id": message.from_user.id,
+            "admin_username": message.from_user.username or "",
+            "admin_first_name": message.from_user.first_name or "",
+        }
+        changelog.append(record)
+        save_changelog()
+        
+        bot.reply_to(message, f"✅ Тимчасову заміну для групи {group_name}, {DAYS_RU[day_key]}, пара {pair_num} ({week_type}) скинуто")
+    else:
+        bot.reply_to(message, f"Тимчасової заміни для вказаної пари не знайдено")
+
+@bot.message_handler(commands=["resetall"])
+def resetall_cmd(message):
+    remember_user(message)
+    if not is_admin(message):
+        return
+    
+    markup = InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        InlineKeyboardButton("✅ Так, скинути", callback_data="reset_all_confirm"),
+        InlineKeyboardButton("❌ Ні, скасувати", callback_data="reset_all_cancel")
+    )
+    
+    bot.reply_to(message, 
+        "⚠️ Ви впевнені, що хочете скинути ВСІ тимчасові заміни?\n"
+        "Ця дія видалить всі зміни, внесені через /setpair.\n"
+        "Після скидання розклад повернеться до стандартного.",
+        reply_markup=markup
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data in ["reset_all_confirm", "reset_all_cancel"])
+def reset_all_callback(call):
+    if call.data == "reset_all_confirm":
+        for group_name in ["БЦІГ-25", "БЦІСТ-25"]:
+            if group_name in temp_changes:
+                temp_changes[group_name] = {}
+        
+        save_temp_changes()
+        
+        now_local = datetime.utcnow() + timedelta(hours=2)
+        record = {
+            "timestamp": now_local.strftime("%Y-%m-%d %H:%M:%S"),
+            "action": "reset_all_temporary_changes",
+            "admin_id": call.from_user.id,
+            "admin_username": call.from_user.username or "",
+            "admin_first_name": call.from_user.first_name or "",
+            "groups": ["БЦІГ-25", "БЦІСТ-25"]
+        }
+        changelog.append(record)
+        save_changelog()
+        
+        bot.answer_callback_query(call.id, "✅ Всі тимчасові заміни скинуті!")
+        bot.edit_message_text(
+            "✅ Всі тимчасові заміни для обох груп успішно скинуті!\n"
+            "Розклад повернуто до стандартного для:\n"
+            "• БЦІГ-25\n"
+            "• БЦІСТ-25",
+            call.message.chat.id,
+            call.message.message_id
+        )
+    else:
+        bot.answer_callback_query(call.id, "❌ Скидання скасовано")
+        bot.edit_message_text(
+            "❌ Скидання тимчасових замін скасовано.",
+            call.message.chat.id,
+            call.message.message_id
+        )
+
+@bot.message_handler(commands=["changes"])
+def changes_cmd(message):
+    remember_user(message)
+    if not is_admin(message):
+        return
+    
+    has_changes_bcig = any(temp_changes.get("БЦІГ-25", {}).values())
+    has_changes_bcist = any(temp_changes.get("БЦІСТ-25", {}).values())
+    
+    if not has_changes_bcig and not has_changes_bcist:
+        bot.reply_to(message, "📋 Активних тимчасових замін немає для жодної групи.")
+        return
+    
+    lines = ["📋 Активні тимчасові заміни (діють до неділі):\n"]
+    
+    for group_name in ["БЦІГ-25", "БЦІСТ-25"]:
+        if group_name in temp_changes and temp_changes[group_name]:
+            lines.append(f"\n👥 Група: {group_name}")
+            for day_key, day_data in temp_changes[group_name].items():
+                lines.append(f"  📅 {DAYS_RU.get(day_key, day_key)}")
+                for week_type, week_data in day_data.items():
+                    if week_data:
+                        lines.append(f"    🔹 {week_type.upper()}:")
+                        for pair_num, change in week_data.items():
+                            subject = change.get("subject", "—")
+                            room = change.get("room", "")
+                            teacher = change.get("teacher", "")
+                            changed_at = change.get("changed_at", "")
+                            
+                            original = change.get("original_subject", "")
+                            original_info = f" (було: {original})" if original else ""
+                            
+                            line = f"      {pair_num}) {subject}{original_info}"
+                            if room:
+                                line += f" ({room})"
+                            if teacher:
+                                line += f" — {teacher}"
+                            if changed_at:
+                                try:
+                                    dt = datetime.strptime(changed_at, "%Y-%m-%d %H:%M:%S")
+                                    line += f" | змінено: {dt.strftime('%d.%m %H:%M')}"
+                                except:
+                                    pass
+                            
+                            lines.append(line)
+    
+    text = "\n".join(lines)
+    if len(text) > 4000:
+        for i in range(0, len(text), 4000):
+            bot.reply_to(message, text[i:i + 4000])
+    else:
+        bot.reply_to(message, text)
+
+@bot.message_handler(commands=["tempstatus"])
+def tempstatus_cmd(message):
+    remember_user(message)
+    if not is_admin(message):
+        return
+    
+    lines = ["📊 Статус тимчасових замін:\n"]
+    
+    for group_name in ["БЦІГ-25", "БЦІСТ-25"]:
+        lines.append(f"\n👥 Група: {group_name}")
+        
+        if group_name in temp_changes and temp_changes[group_name]:
+            total_changes = 0
+            for day_data in temp_changes[group_name].values():
+                for week_data in day_data.values():
+                    total_changes += len(week_data)
+            
+            lines.append(f"  ✅ Активних змін: {total_changes}")
+            
+            for day_key, day_data in temp_changes[group_name].items():
+                day_changes = 0
+                for week_data in day_data.values():
+                    day_changes += len(week_data)
+                
+                if day_changes > 0:
+                    lines.append(f"  📅 {DAYS_RU.get(day_key, day_key)}: {day_changes} змін")
+        else:
+            lines.append(f"  ❌ Немає активних змін")
+    
+    now = datetime.utcnow() + timedelta(hours=2)
+    days_to_sunday = (6 - now.weekday()) % 7
+    next_sunday = now + timedelta(days=days_to_sunday)
+    next_reset = next_sunday.replace(hour=23, minute=0, second=0)
+    
+    lines.append(f"\n⏰ Наступний автоматичний скид: {next_reset.strftime('%d.%m.%Y %H:%M')}")
+    lines.append(f"📅 Через {days_to_sunday} днів")
+    
+    bot.reply_to(message, "\n".join(lines))
+
+@bot.message_handler(commands=["viewtemp"])
+def viewtemp_cmd(message):
+    remember_user(message)
+    if not is_admin(message):
+        return
+    
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        bot.reply_to(message, "Формат: /viewtemp <група>\nПример: /viewtemp БЦІГ-25")
+        return
+    
+    group_name = parts[1].strip()
+    
+    if group_name not in ["БЦІГ-25", "БЦІСТ-25"]:
+        bot.reply_to(message, "Невірна група. Використовуйте: БЦІГ-25 або БЦІСТ-25")
+        return
+    
+    if group_name not in temp_changes or not temp_changes[group_name]:
+        bot.reply_to(message, f"⚠️ Для групи {group_name} немає активних тимчасових змін.")
+        return
+    
+    lines = [f"📋 Тимчасові заміни для групи {group_name}:\n"]
+    
+    for day_key, day_data in temp_changes[group_name].items():
+        day_name = DAYS_RU.get(day_key, day_key)
+        lines.append(f"\n📅 {day_name}:")
+        
+        for week_type, week_data in day_data.items():
+            if week_data:
+                lines.append(f"  🔹 {week_type.upper()}:")
+                for pair_num, change in sorted(week_data.items(), key=lambda x: int(x[0])):
+                    subject = change.get("subject", "—")
+                    room = change.get("room", "")
+                    teacher = change.get("teacher", "")
+                    original = change.get("original_subject", "")
+                    
+                    line = f"    {pair_num}) {subject}"
+                    if original:
+                        line += f" (замість: {original})"
+                    if room:
+                        line += f" ({room})"
+                    if teacher:
+                        line += f" — {teacher}"
+                    
+                    lines.append(line)
+    
+    text = "\n".join(lines)
+    if len(text) > 4000:
+        for i in range(0, len(text), 4000):
+            bot.reply_to(message, text[i:i + 4000])
+    else:
+        bot.reply_to(message, text)
+
+@bot.message_handler(commands=["resetday"])
+def resetday_cmd(message):
+    remember_user(message)
+    if not is_admin(message):
+        return
+    
+    try:
+        _, rest = message.text.split(" ", 1)
+    except ValueError:
+        bot.reply_to(message, "Формат: /resetday <група> <день>\nПример: /resetday БЦІГ-25 понеділок")
+        return
+    
+    parts = rest.split(maxsplit=2)
+    if len(parts) < 2:
+        bot.reply_to(message, "Недостатньо параметрів")
+        return
+    
+    group_name, day_raw = parts[0], parts[1]
+    
+    if group_name not in ["БЦІГ-25", "БЦІСТ-25"]:
+        bot.reply_to(message, "Невірна група. Використовуйте: БЦІГ-25 або БЦІСТ-25")
+        return
+    
+    day_key = DAY_ALIASES.get(day_raw.lower())
+    if not day_key:
+        bot.reply_to(message, "Невірний день")
+        return
+    
+    if (group_name in temp_changes and 
+        day_key in temp_changes[group_name] and 
+        temp_changes[group_name][day_key]):
+        
+        total_changes = 0
+        for week_data in temp_changes[group_name][day_key].values():
+            total_changes += len(week_data)
+        
+        del temp_changes[group_name][day_key]
+        
+        if not temp_changes[group_name]:
+            del temp_changes[group_name]
+        
+        save_temp_changes()
+        
+        now_local = datetime.utcnow() + timedelta(hours=2)
+        record = {
+            "timestamp": now_local.strftime("%Y-%m-%d %H:%M:%S"),
+            "group": group_name,
+            "day_key": day_key,
+            "action": "reset_day_changes",
+            "changes_count": total_changes,
+            "admin_id": message.from_user.id,
+            "admin_username": message.from_user.username or "",
+            "admin_first_name": message.from_user.first_name or "",
+        }
+        changelog.append(record)
+        save_changelog()
+        
+        bot.reply_to(message, 
+            f"✅ Скинуто {total_changes} тимчасових замін для групи {group_name}, {DAYS_RU[day_key]}")
+    else:
+        bot.reply_to(message, 
+            f"Для групи {group_name}, {DAYS_RU[day_key]} немає активних тимчасових змін")
+
+@bot.message_handler(commands=["clearold"])
+def clearold_cmd(message):
+    remember_user(message)
+    if not is_admin(message):
+        return
+    
+    now_local = datetime.utcnow() + timedelta(hours=2)
+    cutoff_date = now_local - timedelta(days=7)
+    
+    removed_count = 0
+    groups_affected = []
+    
+    for group_name in list(temp_changes.keys()):
+        for day_key in list(temp_changes[group_name].keys()):
+            for week_type in list(temp_changes[group_name][day_key].keys()):
+                for pair_num in list(temp_changes[group_name][day_key][week_type].keys()):
+                    change = temp_changes[group_name][day_key][week_type][pair_num]
+                    changed_at_str = change.get("changed_at", "")
+                    
+                    try:
+                        changed_at = datetime.strptime(changed_at_str, "%Y-%m-%d %H:%M:%S")
+                        if changed_at < cutoff_date:
+                            del temp_changes[group_name][day_key][week_type][pair_num]
+                            removed_count += 1
+                            if group_name not in groups_affected:
+                                groups_affected.append(group_name)
+                    except:
+                        continue
+    
+    if removed_count > 0:
+        save_temp_changes()
+        bot.reply_to(message, f"✅ Видалено {removed_count} застарілих тимчасових змін (старше 7 днів). Групи: {', '.join(groups_affected)}")
+    else:
+        bot.reply_to(message, "⚠️ Застарілих тимчасових змін не знайдено")
+
+# ================== ОСТАЛЬНЫЕ АДМИН-КОМАНДЫ ==================
+@bot.message_handler(commands=["adminhelp"])
+def admin_help(message):
+    remember_user(message)
+    if not is_admin(message):
+        return
+    text = (
+        "👑 Адмін-команди:\n\n"
+        "📋 Управління тимчасовими замінами:\n"
+        "/setpair <група> <день> <номер> <тиждень> <предмет> ; <аудиторія> ; <викладач>\n"
+        "   ↳ встановити тимчасову заміну (скидається в неділю)\n"
+        "/resetpair <група> <день> <номер> <тиждень> – скинути тимчасову заміну\n"
+        "/resetall – скинути ВСІ тимчасові заміни\n"
+        "/changes – показати активні тимчасові заміни\n"
+        "/tempstatus – статус тимчасових замін для всіх груп\n"
+        "/viewtemp <група> – детальний перегляд змін для групи\n"
+        "/resetday <група> <день> – скинути всі зміни для дня\n"
+        "/clearold – видалити застарілі зміни (старше 7 днів)\n"
+        "\n📎 Посилання Meet:\n"
+        "/setlink <група> <предмет> <посилання>\n"
+        "/links <група> – список посилань\n"
+        "\n👥 Користувачі:\n"
+        "/who – список користувачів\n"
+        "/whois <@username|id> – інфа по користувачу\n"
+        "/setgroup <id> <група> – змінити групу\n"
+        "\n📊 Статистика:\n"
+        "/stats <week|month> – статистика /wont\n"
+        "/absent – хто сьогодні відсутній\n"
+        "/changelog – останні зміни\n"
+        "\n🎉 Канікули:\n"
+        "/holiday <текст> – оголосити канікули\n"
+        "/school_start <текст> – початок навчання\n"
+        "/holiday_status – статус канікул\n"
+        "\nℹ️ Примітка: зміни через /setpair діють лише до неділі, потім автоматично скидаються."
+    )
+    bot.reply_to(message, text)
 
 @bot.message_handler(commands=["setlink"])
 def setlink_cmd(message):
@@ -1326,8 +1772,8 @@ def setlink_cmd(message):
     if len(parts) < 4:
         bot.reply_to(message, 
             "Формат: /setlink <група> <предмет> <посилання>\n"
-            "Пример: /setlink БЦІГ-25 Математика https://meet.google.com/xxx \n"
-            "Или: /setlink БЦІГ-25 'Захист України Сапко' https://meet.google.com/xxx "
+            "Пример: /setlink БЦІГ-25 Математика https://meet.google.com/xxx  \n"
+            "Или: /setlink БЦІГ-25 'Захист України Сапко' https://meet.google.com/xxx  "
         )
         return
     group_name = parts[1]
@@ -1602,6 +2048,48 @@ def whois_cmd(message):
         lines.append("")
     bot.reply_to(message, "\n".join(lines))
 
+# ================== АВТОМАТИЧЕСКИЙ СБРОС В ВОСКРЕСЕНЬЕ ==================
+def auto_reset_temp_changes():
+    """Автоматически сбрасывает временные изменения в воскресенье в 23:00"""
+    while True:
+        try:
+            now = datetime.utcnow() + timedelta(hours=2)
+            if now.weekday() == 6 and now.hour == 23 and now.minute == 0:
+                print(f"[{now.strftime('%Y-%m-%d %H:%M')}] Автоматичне скидання тимчасових замін...")
+                
+                changed_groups = []
+                for group_name in ["БЦІГ-25", "БЦІСТ-25"]:
+                    if group_name in temp_changes and temp_changes[group_name]:
+                        temp_changes[group_name] = {}
+                        changed_groups.append(group_name)
+                        print(f"✅ Скинуті тимчасові заміни для {group_name}")
+                
+                if changed_groups:
+                    save_temp_changes()
+                    
+                    for admin_id in ADMIN_IDS:
+                        try:
+                            bot.send_message(
+                                admin_id,
+                                "🔄 Автоматичне оновлення розкладу:\n"
+                                "✅ Всі тимчасові заміни скинуті.\n"
+                                f"Групи: {', '.join(changed_groups)}\n"
+                                "Розклад на наступний тиждень повернуто до стандартного."
+                            )
+                        except Exception as e:
+                            print(f"Не вдалося відправити сповіщення адміну {admin_id}: {e}")
+                else:
+                    print("Немає тимчасових замін для скидання")
+                
+                time.sleep(24 * 3600)
+            else:
+                time.sleep(60)
+        except Exception as e:
+            print(f"Помилка в auto_reset_temp_changes: {e}")
+            time.sleep(300)
+
+threading.Thread(target=auto_reset_temp_changes, daemon=True).start()
+
 # ================== УВЕДОМЛЕНИЯ ЗА 5 МИНУТ ДО ПАРЫ ==================
 notified_pairs = set()
 
@@ -1643,7 +2131,6 @@ def send_pair_notification(pair_key, pair_num, pair, day_key, user_id):
         print(f"Не зміг відправити нотіфікацію {user_id}: {e}")
 
 def send_org_notification(org_key, org, day_key, user_id):
-    """Отправка уведомления за 5 минут до организационной часов"""
     group_name = get_user_group(user_id)
     subj = org.get("subject", "Організаційна година")
     room = org.get("room", "")
@@ -1687,7 +2174,6 @@ def notifications_loop():
                 if not day_schedule:
                     continue
                 
-                # Проверяем обычные пары
                 for pair_str, pair in day_schedule.items():
                     if pair_str == "org":
                         continue
@@ -1716,7 +2202,6 @@ def notifications_loop():
                                     send_pair_notification(key, pair_num, pair, day_key, int(uid_str))
                             notified_pairs.add(key)
                 
-                # Проверяем организационную часов (13:20-13:50)
                 org = day_schedule.get("org")
                 if org:
                     start_dt = datetime(d.year, d.month, d.day, 13, 20)
@@ -1737,9 +2222,12 @@ threading.Thread(target=notifications_loop, daemon=True).start()
 
 # ================== СТАРТ БОТА ==================
 print("Бот запущен...")
+print("✅ Система тимчасових замін активна")
+print("👥 Підтримка груп: БЦІГ-25, БЦІСТ-25")
+print("🔄 Автоматичне скидання: щонеділі о 23:00")
 if holidays["is_holiday"]:
-    print("⚠️ Сейчас КАНИКУЛЫ! Автоуведомления отключены.")
+    print("⚠️ Зараз КАНІКУЛИ! Автосповіщення вимкнено.")
 else:
-    print("📚 Учеба в процессе. Автоуведомления включены.")
+    print("📚 Навчання в процесі. Автосповіщення ввімкнено.")
 
 bot.infinity_polling()
