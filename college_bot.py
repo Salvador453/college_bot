@@ -377,18 +377,37 @@ def save_meet_links(links_data):
 meet_links = load_meet_links()
 
 def get_meet_link_for_subject(subj: str, group_name: str = None):
+    """Получить ссылку для предмета з підтримкою часткового збігу"""
     if not subj or not group_name:
         return None
     
     group_links = meet_links.get(group_name, {})
     s = subj.strip().lower()
+    
+    # 1. Точне збігання
     for key, url in group_links.items():
         if key.strip().lower() == s:
             return url
     
+    # 2. Ключ є частиною предмету (напр., "Математика" в "Математика (практика)")
     for key, url in group_links.items():
-        if key.split()[0].lower() in s or s in key.lower():
+        k = key.strip().lower()
+        if k in s:
             return url
+    
+    # 3. Предмет є частиною ключа (напр., "Фізика" в "Фізика і астрономія")
+    for key, url in group_links.items():
+        k = key.strip().lower()
+        if s in k:
+            return url
+    
+    # 4. Збігання по першому слову (напр., "Українська" для "Українська мова/література")
+    s_words = s.split()
+    if s_words:
+        for key, url in group_links.items():
+            k_words = key.strip().lower().split()
+            if s_words[0] == k_words[0]:
+                return url
     
     return None
 
@@ -1531,11 +1550,19 @@ def smart_set_cmd(message):
         'delete': f"❌ *ВИДАЛЕННЯ* пари"
     }.get(parsed['action'], 'Невідома дія')
     
-        # Показуємо дані, навіть якщо кабінет/вчитель пусті
-    room_display = parsed['new_room'] if parsed['new_room'] else '— (не вказано)'
-    teacher_display = parsed['new_teacher'] if parsed['new_teacher'] else '— (не вказано)'
-    
-    confirm_text = f"""📋 *Перевір дані:*
+                # Показываем дані, навіть якщо кабінет/вчитель пусті  
+        room_display = parsed['new_room'] if parsed['new_room'] else '— (не вказано)'
+        teacher_display = parsed['new_teacher'] if parsed['new_teacher'] else '— (не вказано)'
+        
+        # Перевірка чи є посилання для цього предмету
+        link_warning = ""
+        if parsed['new_subject']:
+            test_link = get_meet_link_for_subject(parsed['new_subject'], parsed['group'])
+            if not test_link:
+                link_warning = "\n⚠️ *Увага:* Для цього предмету не знайдено посилання Google Meet!\nДодай його через `/setlink {} \"{}\" <посилання>`\n".format(
+                    parsed['group'], parsed['new_subject'])
+        
+        confirm_text = f"""📋 *Перевір дані:*{link_warning}
 
 👥 Група: `{parsed['group']}`
 📅 День: {day_name} ({parsed['date_str']})
