@@ -1550,7 +1550,7 @@ def smart_set_cmd(message):
         'delete': f"❌ *ВИДАЛЕННЯ* пари"
     }.get(parsed['action'], 'Невідома дія')
     
-                # Показываем дані, навіть якщо кабінет/вчитель пусті  
+                       # Показываем дані, навіть якщо кабінет/вчитель пусті  
         room_display = parsed['new_room'] if parsed['new_room'] else '— (не вказано)'
         teacher_display = parsed['new_teacher'] if parsed['new_teacher'] else '— (не вказано)'
         
