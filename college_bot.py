@@ -1550,29 +1550,29 @@ def smart_set_cmd(message):
         'delete': f"❌ *ВИДАЛЕННЯ* пари"
     }.get(parsed['action'], 'Невідома дія')
      
-room_display = parsed['new_room'] if parsed['new_room'] else '— (не вказано)'
-teacher_display = parsed['new_teacher'] if parsed['new_teacher'] else '— (не вказано)'
-
-# Перевірка чи є посилання для цього предмету
-link_warning = ""
-if parsed['new_subject']:
-    test_link = get_meet_link_for_subject(parsed['new_subject'], parsed['group'])
-    if not test_link:
-        link_warning = "\n⚠️ *Увага:* Для цього предмету не знайдено посилання Google Meet!\nДодай його через `/setlink {} \"{}\" <посилання>`\n".format(
-            parsed['group'], parsed['new_subject'])
-
-confirm_text = f"""📋 *Перевір дані:*{link_warning}
-
-👥 Група: `{parsed['group']}`
-📅 День: {day_name} ({parsed['date_str']})
-🔢 Пара: {parsed['pair_num']}
-📆 Тиждень: {parsed['week_type']}
-
-{action_text}
-🏫 Аудиторія: `{room_display}`
-👨‍🏫 Викладач: `{teacher_display}`
-
-Все вірно?"""
+    room_display = parsed['new_room'] if parsed['new_room'] else '— (не вказано)'
+    teacher_display = parsed['new_teacher'] if parsed['new_teacher'] else '— (не вказано)'
+    
+    # Перевірка чи є посилання для цього предмету
+    link_warning = ""
+    if parsed['new_subject']:
+        test_link = get_meet_link_for_subject(parsed['new_subject'], parsed['group'])
+        if not test_link:
+            link_warning = "\n⚠️ *Увага:* Для цього предмету не знайдено посилання Google Meet!\nДодай його через `/setlink {} \"{}\" <посилання>`\n".format(
+                parsed['group'], parsed['new_subject'])
+    
+    confirm_text = f"""📋 *Перевір дані:*{link_warning}
+    
+    👥 Група: `{parsed['group']}`
+    📅 День: {day_name} ({parsed['date_str']})
+    🔢 Пара: {parsed['pair_num']}
+    📆 Тиждень: {parsed['week_type']}
+    
+    {action_text}
+    🏫 Аудиторія: `{room_display}`
+    👨‍🏫 Викладач: `{teacher_display}`
+    
+    Все вірно?"""
     
     markup = InlineKeyboardMarkup(row_width=2)
     
