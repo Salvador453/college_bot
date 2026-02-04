@@ -1616,17 +1616,23 @@ def smart_set_cmd(message):
         if not test_link:
             link_warning = "\n⚠️ Увага: Для цього предмету не знайдено посилання Google Meet!\nДодай його через /setlink\n"
     
-    # ИСПРАВЛЕНО: Явно используем \n для переносов строк
-    confirm_text = "📋 Перевір дані:" + link_warning + "\n\n" \
-                   "👥 Група: " + str(parsed['group']) + "\n" \
-                   "📅 День: " + str(day_name) + " (" + str(parsed['date_str']) + ")\n" \
-                   "🔢 Пара: " + str(parsed['pair_num']) + "\n" \
-                   "📆 Тиждень: " + str(parsed['week_type']) + "\n\n" \
-                   + action_text + "\n" \
-                   "🏫 Аудиторія: " + room_display + "\n" \
-                   "👨‍🏫 Викладач: " + teacher_display + "\n\n" \
-                   "⚠️ Це тимчасова заміна (діє до неділі 23:00)\n" \
-                   "Все вірно?"
+    # ИСПРАВЛЕНИЕ: Используем список строк и join
+    lines = []
+    lines.append("📋 Перевір дані:" + link_warning)
+    lines.append("")  # пустая строка
+    lines.append(f"👥 Група: {parsed['group']}")
+    lines.append(f"📅 День: {day_name} ({parsed['date_str']})")
+    lines.append(f"🔢 Пара: {parsed['pair_num']}")
+    lines.append(f"📆 Тиждень: {parsed['week_type']}")
+    lines.append("")  # пустая строка
+    lines.append(action_text)
+    lines.append(f"🏫 Аудиторія: {room_display}")
+    lines.append(f"👨‍🏫 Викладач: {teacher_display}")
+    lines.append("")  # пустая строка
+    lines.append("⚠️ Це тимчасова заміна (діє до неділі 23:00)")
+    lines.append("Все вірно?")
+    
+    confirm_text = "\n".join(lines)
     
     markup = InlineKeyboardMarkup(row_width=2)
     
