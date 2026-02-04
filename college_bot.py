@@ -1601,9 +1601,9 @@ def smart_set_cmd(message):
     
     day_name = DAYS_RU.get(parsed['day'], parsed['day'])
     action_text = {
-        'replace': f"🔄 *ЗАМІНА*:\nЗамість '{parsed['old_subject'] or '...'}' → '{parsed['new_subject'] or '...'}'",
-        'add': f"➕ *ДОДАВАННЯ*:\n{parsed['new_subject'] or '...'}",
-        'delete': f"❌ *ВИДАЛЕННЯ* пари"
+        'replace': f"🔄 ЗАМІНА:\nЗамість '{parsed['old_subject'] or '...'}' → '{parsed['new_subject'] or '...'}'",
+        'add': f"➕ ДОДАВАННЯ:\n{parsed['new_subject'] or '...'}",
+        'delete': f"❌ ВИДАЛЕННЯ пари"
     }.get(parsed['action'], 'Невідома дія')
      
     room_display = parsed['new_room'] if parsed['new_room'] else '— (не вказано)'
@@ -1614,22 +1614,22 @@ def smart_set_cmd(message):
     if parsed['new_subject']:
         test_link = get_meet_link_for_subject(parsed['new_subject'], parsed['group'])
         if not test_link:
-            link_warning = "\n⚠️ *Увага:* Для цього предмету не знайдено посилання Google Meet!\nДодай його через `/setlink {} \"{}\" <посилання>`\n".format(
-                parsed['group'], parsed['new_subject'])
+            link_warning = "\n⚠️ Увага: Для цього предмету не знайдено посилання Google Meet!\nДодай його через /setlink\n"
     
-    confirm_text = f"""📋 *Перевір дані:*{link_warning}
-    
-    👥 Група: `{parsed['group']}`
-    📅 День: {day_name} ({parsed['date_str']})
-    🔢 Пара: {parsed['pair_num']}
-    📆 Тиждень: {parsed['week_type']}
-    
-    {action_text}
-    🏫 Аудиторія: `{room_display}`
-    👨‍🏫 Викладач: `{teacher_display}`
-    
-    ⚠️ Це тимчасова заміна (діє до неділі 23:00)
-    Все вірно?"""
+    # Формируем текст с обычными переносами строк (не markdown списки)
+    confirm_text = f"""📋 Перевір дані:{link_warning}
+
+👥 Група: {parsed['group']}
+📅 День: {day_name} ({parsed['date_str']})
+🔢 Пара: {parsed['pair_num']}
+📆 Тиждень: {parsed['week_type']}
+
+{action_text}
+🏫 Аудиторія: {room_display}
+👨‍🏫 Викладач: {teacher_display}
+
+⚠️ Це тимчасова заміна (діє до неділі 23:00)
+Все вірно?"""
     
     markup = InlineKeyboardMarkup(row_width=2)
     
@@ -1646,7 +1646,7 @@ def smart_set_cmd(message):
         InlineKeyboardButton("❌ Скасувати", callback_data="smart_cancel")
     )
     
-    bot.reply_to(message, confirm_text, parse_mode="Markdown", reply_markup=markup)
+    bot.reply_to(message, confirm_text, reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("smart_"))
 def smart_callback_handler(call):
