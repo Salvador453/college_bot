@@ -8,6 +8,7 @@ import re
 import threading
 from flask import Flask
 import os
+import requests
 
 # ====== мини-вебсервер для Render ======
 app = Flask(__name__)
@@ -26,6 +27,19 @@ threading.Thread(target=run_flask, daemon=True).start()
 # ================== НАСТРОЙКИ ==================
 TOKEN = "8314863940:AAHqD0SRXnzAWj6DOdSUKiWHqiC7A-gyMiw"
 bot = telebot.TeleBot(TOKEN)
+
+# ================== НАСТРОЙКИ ПОВІТРЯНОЇ ТРИВОГИ ==================
+# API ключ повітряних тривог (api.ukrainealarm.com / siren.pp.ua)
+AIRALARM_API_KEY = "14d49bd6:19c6d5a643e2fddfb2a473e9c4c08ccd"
+# ID міста Запоріжжя (саме міста, не області)
+AIRALARM_CITY_ID = 564
+# ID телеграм-групи, куди надсилати сповіщення
+ALERT_GROUP_CHAT_ID = -1003088722284
+# Базовий URL API активних тривог
+AIRALARM_API_URL = "https://api.ukrainealarm.com/api/v3/alerts/active"
+
+# поточний стан тривоги для міста (щоб не дублювати повідомлення)
+airalarm_city_active = False
 
 try:
     bot.remove_webhook()
@@ -2091,6 +2105,75 @@ def auto_reset_temp_changes():
             time.sleep(300)
 
 threading.Thread(target=auto_reset_temp_changes, daemon=True).start()
+
+# ================== МОНІТОРИНГ ПОВІТРЯНОЇ ТРИВОГИ ДЛЯ ЗАПОРІЖЖЯ (МІСТО) ==================
+
+def check_airalarm_for_city():
+    """
+    Періодично опитує API повітряних тривог по місту Запоріжжя (cityId=564)
+    і надсилає повідомлення в групу про початок/відбій тривоги.
+    """
+    global airalarm_city_active
+    while True:
+        try:
+            headers = {
+                "X-API-Key": AIRALARM_API_KEY,
+            }
+            params = {
+                "cityId": AIRALARM_CITY_ID,
+            }
+            resp = requests.get(
+                AIRALARM_API_URL,
+                headers=headers,
+                params=params,
+                timeout=10,
+            )
+            if resp.status_code != 200:
+                print(f"[AirAlarm] Bad status: {resp.status_code} {resp.text[:200]}")
+                time.sleep(30)
+                continue
+
+            data = resp.json()
+
+            # Для /alerts/active по місту очікуємо:
+            # якщо масив НЕ порожній -> є активна тривога в місті
+            active_now = False
+            if isinstance(data, list) and len(data) > 0:
+                active_now = True
+
+            # Перехід стану: з спокійно -> тривога
+            if active_now and not airalarm_city_active:
+                airalarm_city_active = True
+                try:
+                    bot.send_message(
+                        ALERT_GROUP_CHAT_ID,
+                        "🚨 *Повітряна тривога в місті Запоріжжя!*\n"
+                        "Негайно перейдіть до укриття.",
+                        parse_mode="Markdown",
+                    )
+                except Exception as e:
+                    print(f"[AirAlarm] Не вдалося надіслати повідомлення про початок тривоги: {e}")
+
+            # Перехід стану: з тривоги -> відбій
+            if not active_now and airalarm_city_active:
+                airalarm_city_active = False
+                try:
+                    bot.send_message(
+                        ALERT_GROUP_CHAT_ID,
+                        "✅ *Відбій повітряної тривоги в місті Запоріжжя.*\n"
+                        "Можна виходити з укриття, дотримуючись офіційних інструкцій.",
+                        parse_mode="Markdown",
+                    )
+                except Exception as e:
+                    print(f"[AirAlarm] Не вдалося надіслати повідомлення про відбій тривоги: {e}")
+
+        except Exception as e:
+            print(f"[AirAlarm] Помилка при опитуванні API: {e}")
+
+        # Інтервал опитування (в секундах). Не ставимо дуже часто, щоб не перевищувати ліміти.
+        time.sleep(30)
+
+threading.Thread(target=check_airalarm_for_city, daemon=True).start()
 
 # ================== УВЕДОМЛЕНИЯ ЗА 5 МИНУТ ДО ПАРЫ ==================
 notified_pairs = set()
