@@ -31,8 +31,8 @@ bot = telebot.TeleBot(TOKEN)
 # ================== НАСТРОЙКИ ПОВІТРЯНОЇ ТРИВОГИ ==================
 # API ключ повітряних тривог (api.ukrainealarm.com)
 AIRALARM_API_KEY = "14d49bd6:19c6d5a643e2fddfb2a473e9c4c08ccd"
-# ID міста Запоріжжя (саме міста, не області)
-AIRALARM_CITY_ID = 564
+# ID регіону/району для моніторингу (Запорізький район)
+AIRALARM_CITY_ID = 149
 # ID телеграм-групи, куди надсилати сповіщення
 ALERT_GROUP_CHAT_ID = -1003088722284
 
