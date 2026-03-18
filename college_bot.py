@@ -92,8 +92,20 @@ def fetch_airalarm_city_status():
         if isinstance(alarms, list):
             return len(alarms) > 0, raw
     elif isinstance(raw, list):
-        # На випадок, якщо API раптом повертає масив подій/модифікацій
-        active = len(raw) > 0
+        # Деякі відповіді приходять як список (наприклад, колекція моделей/подій).
+        # Не можна трактувати len>0 як "тривога", бо список може містити об'єкт зі станом "немає тривоги".
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            if item.get("isAlarm") is True or item.get("alarm") is True or item.get("active") is True:
+                return True, raw
+            if item.get("isAlarm") is False or item.get("alarm") is False or item.get("active") is False:
+                # явно "немає тривоги" — не повертаємось одразу, бо можуть бути й інші елементи
+                pass
+            status = (item.get("status") or item.get("alarmStatus") or item.get("state") or "").strip().lower()
+            if status in {"alarm", "air", "airalarm", "active", "on", "true"}:
+                return True, raw
+        return False, raw
     return active, raw
 
 try:
