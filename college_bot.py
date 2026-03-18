@@ -29,17 +29,49 @@ TOKEN = "8314863940:AAHqD0SRXnzAWj6DOdSUKiWHqiC7A-gyMiw"
 bot = telebot.TeleBot(TOKEN)
 
 # ================== НАСТРОЙКИ ПОВІТРЯНОЇ ТРИВОГИ ==================
-# API ключ повітряних тривог (api.ukrainealarm.com / siren.pp.ua)
+# API ключ повітряних тривог (api.ukrainealarm.com)
 AIRALARM_API_KEY = "14d49bd6:19c6d5a643e2fddfb2a473e9c4c08ccd"
 # ID міста Запоріжжя (саме міста, не області)
 AIRALARM_CITY_ID = 564
 # ID телеграм-групи, куди надсилати сповіщення
 ALERT_GROUP_CHAT_ID = -1003088722284
-# Базовий URL API активних тривог
-AIRALARM_API_URL = "https://api.ukrainealarm.com/api/v3/alerts/active"
+
+# Базовий URL API UkraineAlarm
+AIRALARM_API_BASE = "https://api.ukrainealarm.com"
 
 # поточний стан тривоги для міста (щоб не дублювати повідомлення)
 airalarm_city_active = False
+airalarm_last_check = None
+airalarm_last_error = None
+
+def fetch_airalarm_city_status():
+    """
+    Повертає (active: bool, raw: dict|list|str|None).
+    Використовує endpoint /api/v3/alerts/{regionId}, де regionId може бути ID міста.
+    """
+    headers = {
+        # За офіційною схемою авторизації: API key в HTTP header "Authorization"
+        "Authorization": AIRALARM_API_KEY,
+    }
+    url = f"{AIRALARM_API_BASE}/api/v3/alerts/{AIRALARM_CITY_ID}"
+    resp = requests.get(url, headers=headers, timeout=10)
+    resp.raise_for_status()
+    raw = resp.json()
+
+    # Типові поля, які зустрічаються в різних клієнтах/моделях
+    # - isAlarm / alarm / active
+    # - status: "Alarm" | "NoAlarm" тощо
+    active = False
+    if isinstance(raw, dict):
+        if raw.get("isAlarm") is True or raw.get("alarm") is True or raw.get("active") is True:
+            active = True
+        status = (raw.get("status") or raw.get("alarmStatus") or raw.get("state") or "").lower()
+        if status in {"alarm", "air", "airalarm", "active", "on", "true"}:
+            active = True
+    elif isinstance(raw, list):
+        # На випадок, якщо API раптом повертає масив подій/модифікацій
+        active = len(raw) > 0
+    return active, raw
 
 try:
     bot.remove_webhook()
@@ -2064,6 +2096,47 @@ def whois_cmd(message):
         lines.append("")
     bot.reply_to(message, "\n".join(lines))
 
+
+# ================== ПЕРЕВІРКА ПОВІТРЯНОЇ ТРИВОГИ (ДІАГНОСТИКА) ==================
+@bot.message_handler(commands=["aircheck"])
+def aircheck_cmd(message):
+    remember_user(message)
+    if not is_admin(message):
+        return
+    lines = ["🧪 Перевірка системи повітряної тривоги (Запоріжжя, місто)"]
+    lines.append(f"cityId/regionId: {AIRALARM_CITY_ID}")
+    lines.append(f"chatId: {ALERT_GROUP_CHAT_ID}")
+    lines.append(f"Останній фон.чек: {airalarm_last_check or 'ще не було'}")
+    if airalarm_last_error:
+        lines.append(f"Остання помилка: {airalarm_last_error}")
+
+    # 1) Перевірка API (разовий запит)
+    try:
+        active_now, raw = fetch_airalarm_city_status()
+        lines.append(f"API: ✅ OK, тривога зараз: {'🚨 ТАК' if active_now else '✅ НІ'}")
+        if isinstance(raw, dict):
+            keys_preview = ", ".join(sorted(list(raw.keys()))[:15])
+            lines.append(f"Поля відповіді: {keys_preview}{' ...' if len(raw.keys()) > 15 else ''}")
+        elif isinstance(raw, list):
+            lines.append(f"Відповідь: list, len={len(raw)}")
+        else:
+            lines.append(f"Відповідь: {type(raw)}")
+    except Exception as e:
+        lines.append(f"API: ❌ помилка: {e}")
+
+    # 2) Перевірка відправки в групу (тестове повідомлення)
+    try:
+        bot.send_message(
+            ALERT_GROUP_CHAT_ID,
+            "🧪 Тест: бот може надсилати повідомлення в цю групу. (команда /aircheck)",
+        )
+        lines.append("SendMessage в групу: ✅ OK")
+    except Exception as e:
+        lines.append("SendMessage в групу: ❌ помилка")
+        lines.append(str(e))
+
+    bot.reply_to(message, "\n".join(lines)[:4000])
+
 # ================== АВТОМАТИЧЕСКИЙ СБРОС В ВОСКРЕСЕНЬЕ ==================
 def auto_reset_temp_changes():
     """Автоматически сбрасывает временные изменения в воскресенье в 23:00"""
@@ -2113,33 +2186,12 @@ def check_airalarm_for_city():
     Періодично опитує API повітряних тривог по місту Запоріжжя (cityId=564)
     і надсилає повідомлення в групу про початок/відбій тривоги.
     """
-    global airalarm_city_active
+    global airalarm_city_active, airalarm_last_check, airalarm_last_error
     while True:
         try:
-            headers = {
-                "X-API-Key": AIRALARM_API_KEY,
-            }
-            params = {
-                "cityId": AIRALARM_CITY_ID,
-            }
-            resp = requests.get(
-                AIRALARM_API_URL,
-                headers=headers,
-                params=params,
-                timeout=10,
-            )
-            if resp.status_code != 200:
-                print(f"[AirAlarm] Bad status: {resp.status_code} {resp.text[:200]}")
-                time.sleep(30)
-                continue
-
-            data = resp.json()
-
-            # Для /alerts/active по місту очікуємо:
-            # якщо масив НЕ порожній -> є активна тривога в місті
-            active_now = False
-            if isinstance(data, list) and len(data) > 0:
-                active_now = True
+            airalarm_last_check = (datetime.utcnow() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+            active_now, raw = fetch_airalarm_city_status()
+            airalarm_last_error = None
 
             # Перехід стану: з спокійно -> тривога
             if active_now and not airalarm_city_active:
@@ -2168,6 +2220,7 @@ def check_airalarm_for_city():
                     print(f"[AirAlarm] Не вдалося надіслати повідомлення про відбій тривоги: {e}")
 
         except Exception as e:
+            airalarm_last_error = str(e)
             print(f"[AirAlarm] Помилка при опитуванні API: {e}")
 
         # Інтервал опитування (в секундах). Не ставимо дуже часто, щоб не перевищувати ліміти.
