@@ -38,6 +38,7 @@ ALERT_GROUP_CHAT_ID = -1003088722284
 
 # Базовий URL API UkraineAlarm
 AIRALARM_API_BASE = "https://api.ukrainealarm.com"
+AIRALARM_SIREN_BASE = "https://siren.pp.ua"
 
 # поточний стан тривоги для міста (щоб не дублювати повідомлення)
 airalarm_city_active = False
@@ -45,20 +46,45 @@ airalarm_last_check = None
 airalarm_last_error = None
 airalarm_last_raw = None
 airalarm_last_api_active = None
+airalarm_last_source = None
 
 def fetch_airalarm_city_status():
     """
     Повертає (active: bool, raw: dict|list|str|None).
     Використовує endpoint /api/v3/alerts/{regionId}, де regionId може бути ID міста.
     """
-    headers = {
-        # За офіційною схемою авторизації: API key в HTTP header "Authorization"
-        "Authorization": AIRALARM_API_KEY,
-    }
-    url = f"{AIRALARM_API_BASE}/api/v3/alerts/{AIRALARM_CITY_ID}"
-    resp = requests.get(url, headers=headers, timeout=10)
-    resp.raise_for_status()
-    raw = resp.json()
+    global airalarm_last_source
+    # 1) Спочатку пробуємо офіційний API (може вимагати префікс Token/Bearer)
+    last_exc = None
+    for auth_value in (AIRALARM_API_KEY, f"Token {AIRALARM_API_KEY}", f"Bearer {AIRALARM_API_KEY}"):
+        try:
+            headers = {"Authorization": auth_value}
+            url = f"{AIRALARM_API_BASE}/api/v3/alerts/{AIRALARM_CITY_ID}"
+            resp = requests.get(url, headers=headers, timeout=10)
+            if resp.status_code in (401, 403):
+                last_exc = requests.HTTPError(f"{resp.status_code} Unauthorized/Forbidden for {url}")
+                continue
+            resp.raise_for_status()
+            raw = resp.json()
+            airalarm_last_source = "api.ukrainealarm.com"
+            break
+        except Exception as e:
+            last_exc = e
+            raw = None
+    else:
+        raw = None
+
+    # 2) Якщо офіційний API не дав доступу — fallback на siren.pp.ua (публічний wrapper без ключа)
+    if raw is None:
+        try:
+            url = f"{AIRALARM_SIREN_BASE}/api/v3/alerts/{AIRALARM_CITY_ID}"
+            resp = requests.get(url, headers={"accept": "application/json"}, timeout=10)
+            resp.raise_for_status()
+            raw = resp.json()
+            airalarm_last_source = "siren.pp.ua"
+        except Exception as e:
+            # Повертаємо первинну помилку (401/403), якщо вона була, для більш зрозумілого діагнозу
+            raise last_exc or e
 
     # Типові поля, які зустрічаються в різних клієнтах/моделях
     # - isAlarm / alarm / active
@@ -2149,6 +2175,8 @@ def aircheck_cmd(message):
     lines.append(f"cityId/regionId: {AIRALARM_CITY_ID}")
     lines.append(f"chatId: {ALERT_GROUP_CHAT_ID}")
     lines.append(f"Останній фон.чек: {airalarm_last_check or 'ще не було'}")
+    if airalarm_last_source:
+        lines.append(f"Джерело: {airalarm_last_source}")
     if airalarm_last_error:
         lines.append(f"Остання помилка: {airalarm_last_error}")
     if airalarm_last_api_active is not None:
@@ -2158,6 +2186,8 @@ def aircheck_cmd(message):
     try:
         active_now, raw = fetch_airalarm_city_status()
         lines.append(f"API: ✅ OK, тривога зараз: {'🚨 ТАК' if active_now else '✅ НІ'}")
+        if airalarm_last_source:
+            lines.append(f"Джерело (цей запит): {airalarm_last_source}")
         if isinstance(raw, dict):
             keys_preview = ", ".join(sorted(list(raw.keys()))[:15])
             lines.append(f"Поля відповіді: {keys_preview}{' ...' if len(raw.keys()) > 15 else ''}")
