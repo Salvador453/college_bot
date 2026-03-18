@@ -97,6 +97,13 @@ def fetch_airalarm_city_status():
         for item in raw:
             if not isinstance(item, dict):
                 continue
+            # Формат, який ти отримав: [{"regionId": "...", "activeAlerts": [...]}]
+            active_alerts = item.get("activeAlerts")
+            if isinstance(active_alerts, list):
+                if len(active_alerts) > 0:
+                    return True, raw
+                # явна ознака "немає тривоги" для цього регіону/міста
+                # (але не виходимо одразу, якщо в списку кілька елементів)
             if item.get("isAlarm") is True or item.get("alarm") is True or item.get("active") is True:
                 return True, raw
             if item.get("isAlarm") is False or item.get("alarm") is False or item.get("active") is False:
