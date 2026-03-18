@@ -43,6 +43,8 @@ AIRALARM_API_BASE = "https://api.ukrainealarm.com"
 airalarm_city_active = False
 airalarm_last_check = None
 airalarm_last_error = None
+airalarm_last_raw = None
+airalarm_last_api_active = None
 
 def fetch_airalarm_city_status():
     """
@@ -63,11 +65,32 @@ def fetch_airalarm_city_status():
     # - status: "Alarm" | "NoAlarm" тощо
     active = False
     if isinstance(raw, dict):
-        if raw.get("isAlarm") is True or raw.get("alarm") is True or raw.get("active") is True:
-            active = True
-        status = (raw.get("status") or raw.get("alarmStatus") or raw.get("state") or "").lower()
+        # Якщо API віддає явний bool — довіряємо йому
+        if raw.get("isAlarm") is True:
+            return True, raw
+        if raw.get("isAlarm") is False:
+            return False, raw
+        if raw.get("alarm") is True:
+            return True, raw
+        if raw.get("alarm") is False:
+            return False, raw
+        if raw.get("active") is True:
+            return True, raw
+        if raw.get("active") is False:
+            return False, raw
+
+        status = (raw.get("status") or raw.get("alarmStatus") or raw.get("state") or "").strip().lower()
+        # Явні стани "немає тривоги"
+        if status in {"noalarm", "no_alarm", "none", "off", "inactive", "clear", "stop", "finished", "finish"}:
+            return False, raw
+        # Явні стани "тривога"
         if status in {"alarm", "air", "airalarm", "active", "on", "true"}:
-            active = True
+            return True, raw
+
+        # Деякі моделі можуть містити вкладені "alarms"/"alerts"
+        alarms = raw.get("alarms") or raw.get("alerts")
+        if isinstance(alarms, list):
+            return len(alarms) > 0, raw
     elif isinstance(raw, list):
         # На випадок, якщо API раптом повертає масив подій/модифікацій
         active = len(raw) > 0
@@ -2109,6 +2132,8 @@ def aircheck_cmd(message):
     lines.append(f"Останній фон.чек: {airalarm_last_check or 'ще не було'}")
     if airalarm_last_error:
         lines.append(f"Остання помилка: {airalarm_last_error}")
+    if airalarm_last_api_active is not None:
+        lines.append(f"Останній стан (з API): {'🚨 ТАК' if airalarm_last_api_active else '✅ НІ'}")
 
     # 1) Перевірка API (разовий запит)
     try:
@@ -2136,6 +2161,22 @@ def aircheck_cmd(message):
         lines.append(str(e))
 
     bot.reply_to(message, "\n".join(lines)[:4000])
+
+
+@bot.message_handler(commands=["airraw"])
+def airraw_cmd(message):
+    remember_user(message)
+    if not is_admin(message):
+        return
+    if airalarm_last_raw is None:
+        bot.reply_to(message, "Ще немає збереженої відповіді API (фон ще не встиг опитати або була помилка).")
+        return
+    try:
+        txt = json.dumps(airalarm_last_raw, ensure_ascii=False, indent=2)
+    except Exception:
+        txt = str(airalarm_last_raw)
+    # щоб не перевищити ліміт телеграм
+    bot.reply_to(message, ("Остання сира відповідь API:\n\n" + txt)[:3800])
 
 # ================== АВТОМАТИЧЕСКИЙ СБРОС В ВОСКРЕСЕНЬЕ ==================
 def auto_reset_temp_changes():
@@ -2186,11 +2227,13 @@ def check_airalarm_for_city():
     Періодично опитує API повітряних тривог по місту Запоріжжя (cityId=564)
     і надсилає повідомлення в групу про початок/відбій тривоги.
     """
-    global airalarm_city_active, airalarm_last_check, airalarm_last_error
+    global airalarm_city_active, airalarm_last_check, airalarm_last_error, airalarm_last_raw, airalarm_last_api_active
     while True:
         try:
             airalarm_last_check = (datetime.utcnow() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
             active_now, raw = fetch_airalarm_city_status()
+            airalarm_last_raw = raw
+            airalarm_last_api_active = active_now
             airalarm_last_error = None
 
             # Перехід стану: з спокійно -> тривога
