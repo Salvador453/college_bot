@@ -31,8 +31,8 @@ bot = telebot.TeleBot(TOKEN)
 # ================== НАСТРОЙКИ ПОВІТРЯНОЇ ТРИВОГИ ==================
 # API ключ повітряних тривог (api.ukrainealarm.com)
 AIRALARM_API_KEY = "14d49bd6:19c6d5a643e2fddfb2a473e9c4c08ccd"
-# ID регіону/району для моніторингу (Запорізький район)
-AIRALARM_CITY_ID = 149
+# ID міста Запоріжжя (саме місто)
+AIRALARM_CITY_ID = 564
 # ID телеграм-групи, куди надсилати сповіщення
 ALERT_GROUP_CHAT_ID = -1003088722284
 
@@ -47,6 +47,30 @@ airalarm_last_error = None
 airalarm_last_raw = None
 airalarm_last_api_active = None
 airalarm_last_source = None
+
+# Включ/выключ оповещений тревог (чтобы ночью не мешало)
+AIRALARM_SETTINGS_FILE = "airalarm_settings.json"
+
+def load_airalarm_settings():
+    path = Path(AIRALARM_SETTINGS_FILE)
+    if not path.exists():
+        return {"enabled": True}
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        if "enabled" not in data:
+            data["enabled"] = True
+        return data
+    except Exception:
+        return {"enabled": True}
+
+def save_airalarm_settings(settings):
+    path = Path(AIRALARM_SETTINGS_FILE)
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(settings, f, ensure_ascii=False, indent=2)
+
+airalarm_settings = load_airalarm_settings()
+airalarm_enabled = bool(airalarm_settings.get("enabled", True))
 
 def fetch_airalarm_city_status():
     """
@@ -2174,6 +2198,7 @@ def aircheck_cmd(message):
     lines = ["🧪 Перевірка системи повітряної тривоги (Запоріжжя, місто)"]
     lines.append(f"cityId/regionId: {AIRALARM_CITY_ID}")
     lines.append(f"chatId: {ALERT_GROUP_CHAT_ID}")
+    lines.append(f"air alarm enabled: {'ON' if airalarm_enabled else 'OFF'}")
     lines.append(f"Останній фон.чек: {airalarm_last_check or 'ще не було'}")
     if airalarm_last_source:
         lines.append(f"Джерело: {airalarm_last_source}")
@@ -2227,6 +2252,30 @@ def airraw_cmd(message):
     # щоб не перевищити ліміт телеграм
     bot.reply_to(message, ("Остання сира відповідь API:\n\n" + txt)[:3800])
 
+
+@bot.message_handler(commands=["airon"])
+def airon_cmd(message):
+    remember_user(message)
+    if not is_admin(message):
+        return
+    global airalarm_enabled, airalarm_city_active
+    airalarm_enabled = True
+    airalarm_city_active = False
+    save_airalarm_settings({"enabled": True})
+    bot.reply_to(message, "✅ Оповещения тревог включены (/airoff выключает).")
+
+
+@bot.message_handler(commands=["airoff"])
+def airoff_cmd(message):
+    remember_user(message)
+    if not is_admin(message):
+        return
+    global airalarm_enabled, airalarm_city_active
+    airalarm_enabled = False
+    airalarm_city_active = False
+    save_airalarm_settings({"enabled": False})
+    bot.reply_to(message, "⛔️ Оповещения тревог выключены.")
+
 # ================== АВТОМАТИЧЕСКИЙ СБРОС В ВОСКРЕСЕНЬЕ ==================
 def auto_reset_temp_changes():
     """Автоматически сбрасывает временные изменения в воскресенье в 23:00"""
@@ -2279,6 +2328,12 @@ def check_airalarm_for_city():
     global airalarm_city_active, airalarm_last_check, airalarm_last_error, airalarm_last_raw, airalarm_last_api_active
     while True:
         try:
+            # Если оповещения выключены — не шлём сообщения и не держим состояние.
+            if not airalarm_enabled:
+                airalarm_city_active = False
+                time.sleep(60)
+                continue
+
             airalarm_last_check = (datetime.utcnow() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
             active_now, raw = fetch_airalarm_city_status()
             airalarm_last_raw = raw
