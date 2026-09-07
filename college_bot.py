@@ -25,7 +25,7 @@ threading.Thread(target=run_flask, daemon=True).start()
 # =======================================
 
 # ================== НАСТРОЙКИ ==================
-TOKEN = "8314863940:AAHqD0SRXnzAWj6DOdSUKiWHqiC7A-gyMiw"
+TOKEN = "8772463194:AAEVd5lAIiONwZcb5dRJA5YX2hX6vMYp1rY"
 bot = telebot.TeleBot(TOKEN)
 
 # ================== НАСТРОЙКИ ПОВІТРЯНОЇ ТРИВОГИ ==================
