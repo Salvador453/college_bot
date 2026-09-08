@@ -53,7 +53,7 @@ AIRALARM_API_KEY = "14d49bd6:19c6d5a643e2fddfb2a473e9c4c08ccd"
 # ID міста Запоріжжя (саме місто)
 AIRALARM_CITY_ID = 564
 # ID телеграм-групи, куди надсилати сповіщення
-ALERT_GROUP_CHAT_ID = -1003088722284
+ALERT_GROUP_CHAT_ID = -1003402306428 -1003633260969
 
 # Базовий URL API UkraineAlarm
 AIRALARM_API_BASE = "https://api.ukrainealarm.com"
